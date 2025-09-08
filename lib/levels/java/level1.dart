@@ -2,17 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
-// DUMMY LEVEL 2 PAGE
-class JavaLevel2 extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("Java - Level 2")),
-      body: Center(child: Text("🎉 Welcome to Java Level 2!")),
-    );
-  }
-}
-
 class JavaLevel1 extends StatefulWidget {
   const JavaLevel1({super.key});
 
@@ -25,6 +14,8 @@ class _JavaLevel1State extends State<JavaLevel1> {
   List<String> droppedBlocks = [];
   bool gameStarted = false;
   bool isTagalog = false;
+  bool isAnsweredCorrectly = false;
+  bool level1Completed = false;
 
   int score = 3;
   int remainingSeconds = 60;
@@ -39,12 +30,12 @@ class _JavaLevel1State extends State<JavaLevel1> {
 
   void resetBlocks() {
     allBlocks = [
-      'System.',
-      'out.',
-      'println',
+      'System.out.println',
       '("Hello World");',
-      'printx("Hi");',
-      'printlnx',
+      'print',
+      '("Hi Java");',
+      'System.print("Hello");',
+      ';',
     ]..shuffle();
   }
 
@@ -54,13 +45,14 @@ class _JavaLevel1State extends State<JavaLevel1> {
       score = 3;
       remainingSeconds = 60;
       droppedBlocks.clear();
+      isAnsweredCorrectly = false;
       resetBlocks();
     });
     startTimer();
   }
 
   void startTimer() {
-    countdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         remainingSeconds--;
         if (remainingSeconds == 30 && score > 0) {
@@ -68,12 +60,13 @@ class _JavaLevel1State extends State<JavaLevel1> {
           saveScoreToPrefs(score);
         }
         if (remainingSeconds <= 0) {
+          score = 0;
           timer.cancel();
           saveScoreToPrefs(score);
           showDialog(
             context: context,
             builder: (_) => AlertDialog(
-              title: Text("⏰ Time's Up!"),
+              title: const Text("⏰ Time's Up!"),
               content: Text("Score: $score"),
               actions: [
                 TextButton(
@@ -81,7 +74,7 @@ class _JavaLevel1State extends State<JavaLevel1> {
                     resetGame();
                     Navigator.pop(context);
                   },
-                  child: Text("Retry"),
+                  child: const Text("Retry"),
                 )
               ],
             ),
@@ -92,10 +85,12 @@ class _JavaLevel1State extends State<JavaLevel1> {
   }
 
   void resetGame() {
+    if (level1Completed) return;
     setState(() {
       score = 3;
       remainingSeconds = 60;
       gameStarted = false;
+      isAnsweredCorrectly = false;
       droppedBlocks.clear();
       countdownTimer?.cancel();
       resetBlocks();
@@ -104,74 +99,82 @@ class _JavaLevel1State extends State<JavaLevel1> {
 
   Future<void> saveScoreToPrefs(int score) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('Java_level1_score', score);
+    await prefs.setInt('java_level1_score', score); // ✅ Java key
+
+    if (score > 0) {
+      await prefs.setBool('java_level1_completed', true); // ✅ Java key
+    }
   }
 
   Future<void> loadScoreFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedScore = prefs.getInt('Java_level1_score');
-    if (savedScore != null) {
-      setState(() {
-        score = savedScore;
-      });
-    }
+    final savedScore = prefs.getInt('java_level1_score'); // ✅ Java key
+    final completed = prefs.getBool('java_level1_completed') ?? false;
+    setState(() {
+      if (savedScore != null) score = savedScore;
+      level1Completed = completed;
+    });
   }
 
-  void checkAnswer() {
-    String answer = droppedBlocks.join('');
-    String correct = 'System.out.println("Hello World");';
+  void checkAnswer() async {
+    if (isAnsweredCorrectly || droppedBlocks.isEmpty) return;
 
-    if (answer == correct) {
+    String answer = droppedBlocks.join(' ');
+    if (answer == 'System.out.println ("Hello World");') {
       countdownTimer?.cancel();
-      saveScoreToPrefs(score);
+      isAnsweredCorrectly = true;
+      await saveScoreToPrefs(score);
+
+      setState(() {
+        level1Completed = true;
+      });
+
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: Text("✅ Correct!"),
-          content: Text("Well done Totoy! You printed your first Java output!"),
+          title: const Text("✅ Correct!"),
+          content: const Text("Well done, Java Programmer!"),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => JavaLevel2()),
-                );
+                Navigator.pushReplacementNamed(context, '/java_level2');
               },
-              child: Text("Next Level"),
+              child: const Text("Next Level"),
             )
           ],
         ),
       );
     } else {
-      if (score > 0) {
+      if (score > 1) {
         setState(() {
           score--;
         });
         saveScoreToPrefs(score);
-      }
-
-      if (score <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("❌ Incorrect. -1 point")),
+        );
+      } else {
+        setState(() {
+          score = 0;
+        });
         countdownTimer?.cancel();
+        saveScoreToPrefs(score);
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            title: Text("💀 Game Over"),
-            content: Text("Totoy, you lost all your points."),
+            title: const Text("💀 Game Over"),
+            content: const Text("You lost all your points."),
             actions: [
               TextButton(
                 onPressed: () {
                   Navigator.pop(context);
                   resetGame();
                 },
-                child: Text("Retry"),
+                child: const Text("Retry"),
               )
             ],
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Incorrect. -1 point")),
         );
       }
     }
@@ -184,7 +187,7 @@ class _JavaLevel1State extends State<JavaLevel1> {
   }
 
   String getPreviewCode() {
-    return droppedBlocks.join('');
+    return droppedBlocks.join(' ');
   }
 
   @override
@@ -197,20 +200,21 @@ class _JavaLevel1State extends State<JavaLevel1> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("☕ Java - Level 1"),
-        backgroundColor: Colors.brown,
+        title: const Text("☕ Java - Level 1"),
+        backgroundColor: Colors.deepOrange,
         actions: gameStarted
             ? [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                Icon(Icons.timer),
-                SizedBox(width: 4),
+                const Icon(Icons.timer),
+                const SizedBox(width: 4),
                 Text(formatTime(remainingSeconds)),
-                SizedBox(width: 16),
-                Icon(Icons.star, color: Colors.yellowAccent),
-                Text(" $score", style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 16),
+                const Icon(Icons.star, color: Colors.yellowAccent),
+                Text(" $score",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -223,26 +227,40 @@ class _JavaLevel1State extends State<JavaLevel1> {
 
   Widget buildStartScreen() {
     return Center(
-      child: ElevatedButton.icon(
-        onPressed: startGame,
-        icon: Icon(Icons.play_arrow),
-        label: Text("Start Game"),
-        style: ElevatedButton.styleFrom(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ElevatedButton.icon(
+            onPressed: level1Completed ? null : startGame,
+            icon: const Icon(Icons.play_arrow),
+            label: Text(level1Completed ? "Completed" : "Start Game"),
+            style: ElevatedButton.styleFrom(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+          ),
+          if (level1Completed)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text(
+                "✅ Level 1 already completed!",
+                style: TextStyle(color: Colors.green),
+              ),
+            ),
+        ],
       ),
     );
   }
 
   Widget buildGameUI() {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('📖 Short Story',
+              const Text('📖 Short Story',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               TextButton.icon(
                 onPressed: () {
@@ -250,53 +268,57 @@ class _JavaLevel1State extends State<JavaLevel1> {
                     isTagalog = !isTagalog;
                   });
                 },
-                icon: Icon(Icons.translate),
+                icon: const Icon(Icons.translate),
                 label: Text(isTagalog ? 'English' : 'Tagalog'),
               ),
             ],
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           Text(
             isTagalog
-                ? 'Si Totoy ay unang natututo ng Java! Gusto niyang ipakita ang kanyang unang output gamit ang `System.out.println("Hello World");`. Pwede mo ba siyang tulungan buuin ang tamang code?'
-                : 'Totoy is learning Java for the first time! He wants to display his first output using `System.out.println("Hello World");`. Can you help him build the correct code?',
+                ? 'Si Zeke ay unang natututo ng Java! Gusto niyang ipakita ang kanyang unang output gamit ang System.out.println("Hello World"); Pwede mo ba siyang tulungan buuin ang tamang code?'
+                : 'Zeke is learning Java for the first time! He wants to display his first output using System.out.println("Hello World"); Can you help him build the correct code?',
             textAlign: TextAlign.justify,
-            style: TextStyle(fontSize: 16),
+            style: const TextStyle(fontSize: 16),
           ),
-          SizedBox(height: 20),
-          Text('🧩 Arrange the puzzle blocks to form: System.out.println("Hello World");',
+          const SizedBox(height: 20),
+          const Text(
+              '🧩 Arrange the puzzle blocks to form: System.out.println("Hello World");',
               style: TextStyle(fontSize: 18), textAlign: TextAlign.center),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           Container(
-            height: 150,
+            height: 140,
             width: double.infinity,
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.grey[100],
-              border: Border.all(color: Colors.brown, width: 2.5),
+              border: Border.all(color: Colors.blueGrey, width: 2.5),
               borderRadius: BorderRadius.circular(20),
             ),
             child: DragTarget<String>(
               onAccept: (data) {
-                setState(() {
-                  droppedBlocks.add(data);
-                  allBlocks.remove(data);
-                });
+                if (!isAnsweredCorrectly) {
+                  setState(() {
+                    droppedBlocks.add(data);
+                    allBlocks.remove(data);
+                  });
+                }
               },
               builder: (context, candidateData, rejectedData) {
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Wrap(
-                    spacing: 8,
+                return Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: droppedBlocks.map((block) {
                       return GestureDetector(
                         onTap: () {
-                          setState(() {
-                            droppedBlocks.remove(block);
-                            allBlocks.add(block);
-                          });
+                          if (!isAnsweredCorrectly) {
+                            setState(() {
+                              droppedBlocks.remove(block);
+                              allBlocks.add(block);
+                            });
+                          }
                         },
-                        child: codeBlock(block, Colors.greenAccent),
+                        child: puzzleBlock(block, Colors.greenAccent),
                       );
                     }).toList(),
                   ),
@@ -304,59 +326,63 @@ class _JavaLevel1State extends State<JavaLevel1> {
               },
             ),
           ),
-          SizedBox(height: 20),
-          Text('📝 Preview:', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          const Text('📝 Preview:',
+              style: TextStyle(fontWeight: FontWeight.bold)),
           Container(
-            padding: EdgeInsets.all(10),
+            padding: const EdgeInsets.all(10),
             width: double.infinity,
             color: Colors.grey[300],
             child: Text(
               getPreviewCode(),
-              style: TextStyle(fontFamily: 'monospace', fontSize: 18),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 18),
             ),
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             alignment: WrapAlignment.center,
             children: allBlocks.map((block) {
-              return Draggable<String>(
+              return isAnsweredCorrectly
+                  ? puzzleBlock(block, Colors.grey)
+                  : Draggable<String>(
                 data: block,
-                feedback: codeBlock(block, Colors.blueAccent),
-                childWhenDragging:
-                Opacity(opacity: 0.4, child: codeBlock(block, Colors.blueAccent)),
-                child: codeBlock(block, Colors.blueAccent),
+                feedback: puzzleBlock(block, Colors.blueAccent),
+                childWhenDragging: Opacity(
+                    opacity: 0.4,
+                    child: puzzleBlock(block, Colors.blueAccent)),
+                child: puzzleBlock(block, Colors.blueAccent),
               );
             }).toList(),
           ),
-          SizedBox(height: 30),
+          const SizedBox(height: 30),
           ElevatedButton.icon(
-            onPressed: checkAnswer,
-            icon: Icon(Icons.play_arrow),
-            label: Text("Run Code"),
+            onPressed: isAnsweredCorrectly ? null : checkAnswer,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text("Run Code"),
           ),
           TextButton(
-            onPressed: resetGame,
-            child: Text("🔁 Retry"),
+            onPressed: level1Completed ? null : resetGame,
+            child: const Text("🔁 Retry"),
           ),
         ],
       ),
     );
   }
 
-  Widget codeBlock(String text, Color color) {
+  Widget puzzleBlock(String text, Color color) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 6),
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.only(
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
         ),
         border: Border.all(color: Colors.black45, width: 1.5),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: Colors.black26,
             blurRadius: 4,
@@ -366,7 +392,7 @@ class _JavaLevel1State extends State<JavaLevel1> {
       ),
       child: Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontWeight: FontWeight.bold,
           fontFamily: 'monospace',
           fontSize: 16,

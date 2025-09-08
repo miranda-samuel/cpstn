@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// 👉 import mo yung level file (Python Level 1)
+// 👉 import natin lahat ng levels
 import 'package:cpstn/levels/python/level1.dart';
+import 'package:cpstn/levels/python/level2.dart';
+
+import '../levels/cpp/level1.dart';
+import '../levels/cpp/level2.dart';
+import '../levels/java/level1.dart';
+import '../levels/java/level2.dart';
+import '../levels/php/level1.dart';
+import '../levels/sql/level1.dart' hide PhpLevel1;
+import '../levels/sql/level2.dart' hide PhpLevel1;
 
 class LevelSelectionScreen extends StatefulWidget {
   const LevelSelectionScreen({super.key});
@@ -53,12 +62,24 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
     final prevCompletedKey =
         '${selectedLanguage.toLowerCase()}_level${levelIndex - 1}_completed';
 
-    // ✅ unlock if previous level was marked as completed
     return scores[prevCompletedKey] == 1;
   }
 
-  String _getLevelRoute(int levelIndex) {
-    return '/game/${selectedLanguage.toLowerCase()}/$levelIndex';
+  Future<void> _resetLevel(int levelIndex) async {
+    final prefs = await SharedPreferences.getInstance();
+    final scoreKey = '${selectedLanguage.toLowerCase()}_level${levelIndex}_score';
+    final completedKey =
+        '${selectedLanguage.toLowerCase()}_level${levelIndex}_completed';
+
+    await prefs.remove(scoreKey);
+    await prefs.remove(completedKey);
+
+    if (mounted) {
+      _loadScores();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Level $levelIndex reset successfully ✅")),
+      );
+    }
   }
 
   Widget _buildLevelCard(int levelIndex) {
@@ -90,19 +111,114 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
           borderRadius: BorderRadius.circular(16),
           onTap: isUnlocked
               ? () {
-            // 👉 special case: Python Level 1
-            if (selectedLanguage.toLowerCase() == "python" &&
-                levelIndex == 1) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PythonLevel1()),
-              ).then((_) => _loadScores()); // refresh after return
-            } else {
-              // 👉 fallback sa generic route
-              Navigator.pushNamed(
-                context,
-                _getLevelRoute(levelIndex),
-              ).then((_) => _loadScores()); // refresh after return
+            final lang = selectedLanguage.toLowerCase();
+            switch (lang) {
+              case "python":
+                switch (levelIndex) {
+                  case 1:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PythonLevel1()),
+                    ).then((_) => _loadScores());
+                    break;
+                  case 2:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PythonLevel2()),
+                    ).then((_) => _loadScores());
+                    break;
+                  default:
+                    _notImplemented(context);
+                }
+                break;
+
+              case "java":
+                switch (levelIndex) {
+                  case 1:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const JavaLevel1()),
+                    ).then((_) => _loadScores());
+                    break;
+                  case 2:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const JavaLevel2()),
+                    ).then((_) => _loadScores());
+                    break;
+                  default:
+                    _notImplemented(context);
+                }
+                break;
+
+              case "cpp":
+              case "c++": // para kahit alin gumana
+                switch (levelIndex) {
+                  case 1:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CppLevel1(),
+                      ),
+                    ).then((_) => _loadScores());
+                    break;
+                  case 2:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CppLevel2(),
+                      ),
+                    ).then((_) => _loadScores());
+                    break;
+                  default:
+                    _notImplemented(context);
+                }
+                break;
+
+              case "php":
+                switch (levelIndex) {
+                  case 1:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PhpLevel1()),
+                    ).then((_) => _loadScores());
+                    break;
+                  default:
+                    _notImplemented(context);
+                }
+                break;
+
+              case "sql":
+                switch (levelIndex) {
+                  case 1:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const SqlLevel1()),
+                    ).then((_) => _loadScores());
+                    break;
+                  case 2:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const SqlLevel2()),
+                    ).then((_) => _loadScores());
+                    break;
+                  default:
+                    _notImplemented(context);
+                }
+                break;
+
+              default:
+                Navigator.pushNamed(
+                  context,
+                  '/game/$lang/$levelIndex',
+                ).then((_) => _loadScores());
             }
           }
               : () => _showLockedDialog(context, levelIndex),
@@ -151,6 +267,12 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                     ],
                   ),
                 ),
+                // 👉 reset icon lalabas lang pag unlocked at may progress
+                if (isUnlocked && (score > 0 || completed))
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.red),
+                    onPressed: () => _resetLevel(levelIndex),
+                  ),
                 Icon(
                   Icons.arrow_forward_ios,
                   color: isUnlocked ? Colors.teal.shade700 : Colors.grey,
@@ -177,6 +299,14 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
             child: const Text("OK"),
           ),
         ],
+      ),
+    );
+  }
+
+  void _notImplemented(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("⚠️ Level not yet implemented, boss."),
       ),
     );
   }

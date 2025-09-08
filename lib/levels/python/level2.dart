@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import "package:shared_preferences/shared_preferences.dart";
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
-import 'dart:math';
+
+// 🔑 Import mo dito yung susunod na level
+// import 'python_level3.dart';
 
 class PythonLevel2 extends StatefulWidget {
   const PythonLevel2({super.key});
@@ -11,133 +13,165 @@ class PythonLevel2 extends StatefulWidget {
 }
 
 class _PythonLevel2State extends State<PythonLevel2> {
-  final List<String> correctSequence = ['x', '=', '5', 'print', '(', 'x', ')'];
-
-  late List<Map<String, dynamic>> initialBlocks;
-  late List<Map<String, dynamic>> codeBlocks;
-  List<Map<String, dynamic>?> droppedBlocks = List.filled(7, null);
-
-  bool isTagalog = false;
+  List<String> allBlocks = [];
+  List<String> droppedBlocks = [];
   bool gameStarted = false;
+  bool isTagalog = false;
+  bool isAnsweredCorrectly = false;
+  bool level2Completed = false;
+
   int score = 3;
+  int remainingSeconds = 60;
   Timer? countdownTimer;
-  int remainingSeconds = 120;
 
   @override
   void initState() {
     super.initState();
-    initialBlocks = List.generate(correctSequence.length, (i) {
-      return {'text': correctSequence[i], 'id': i};
-    });
-    codeBlocks = List.from(initialBlocks)..shuffle(Random());
+    resetBlocks();
     loadScoreFromPrefs();
   }
 
-  Future<void> saveScoreToPrefs(int score) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('python_level2_score', score);
-  }
-
-  Future<void> loadScoreFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedScore = prefs.getInt('python_level2_score');
-    if (savedScore != null) {
-      setState(() {
-        score = savedScore;
-      });
-    }
+  void resetBlocks() {
+    allBlocks = [
+      'x',
+      '=',
+      '5',
+      'print',
+      '(',
+      'x',
+      ')',
+      ';',
+      'printx',
+      '7'
+    ]..shuffle();
   }
 
   void startGame() {
     setState(() {
       gameStarted = true;
+      score = 3;
+      remainingSeconds = 60;
+      droppedBlocks.clear();
+      isAnsweredCorrectly = false;
+      resetBlocks();
     });
     startTimer();
   }
 
   void startTimer() {
-    countdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         remainingSeconds--;
-        if (remainingSeconds == 60 && score > 0) {
+        if (remainingSeconds == 30 && score > 0) {
           score--;
           saveScoreToPrefs(score);
         }
         if (remainingSeconds <= 0) {
+          score = 0;
           timer.cancel();
-          showResultDialog("⏱ Time's Up", "Your score: $score");
-        }
-        if (score <= 0) {
-          timer.cancel();
-          showResultDialog("💀 Game Over", "You lost all your points.");
+          saveScoreToPrefs(score);
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text("⏰ Time's Up!"),
+              content: Text("Score: $score"),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    resetGame();
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Retry"),
+                )
+              ],
+            ),
+          );
         }
       });
     });
   }
 
-  void checkAnswer() async {
-    final answer = droppedBlocks.map((e) => e?['text'] ?? '').join(' ');
-    final prefs = await SharedPreferences.getInstance();
-
-    if (answer == correctSequence.join(' ')) {
-      // ✅ Mark score as 3 (perfect) no matter what
+  void resetGame() {
+    if (level2Completed) return;
+    setState(() {
       score = 3;
-      await prefs.setInt('python_level2_score', score);
-
+      remainingSeconds = 60;
+      gameStarted = false;
+      isAnsweredCorrectly = false;
+      droppedBlocks.clear();
       countdownTimer?.cancel();
-      showResultDialog("🎉 Well Done!", "You completed Level 2!\nScore: $score", nextLevel: true);
-    } else {
-      if (score > 0) {
-        setState(() {
-          score--;
-        });
-        await prefs.setInt('python_level2_score', score);
-      }
-      if (score <= 0) {
-        countdownTimer?.cancel();
-        showResultDialog("💀 Game Over", "You lost all your points.");
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Incorrect. -1 point")),
-        );
-      }
+      resetBlocks();
+    });
+  }
+
+  Future<void> saveScoreToPrefs(int score) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('python_level2_score', score);
+
+    if (score > 0) {
+      await prefs.setBool('python_level2_completed', true);
     }
   }
 
-
-  void showResultDialog(String title, String message, {bool nextLevel = false}) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          if (nextLevel)
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, '/python_level3');
-              },
-              child: Text("Next Level"),
-            ),
-          TextButton(
-            onPressed: () {
-              saveScoreToPrefs(3);
-              Navigator.pop(context);
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const PythonLevel2()));
-            },
-            child: Text("Retry"),
-          )
-        ],
-      ),
-    );
+  Future<void> loadScoreFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedScore = prefs.getInt('python_level2_score');
+    final completed = prefs.getBool('python_level2_completed') ?? false;
+    setState(() {
+      if (savedScore != null) score = savedScore;
+      level2Completed = completed;
+    });
   }
 
-  @override
-  void dispose() {
-    countdownTimer?.cancel();
-    super.dispose();
+  void checkAnswer() async {
+    if (isAnsweredCorrectly || droppedBlocks.isEmpty) return;
+
+    String answer = droppedBlocks.join(' ');
+    if (answer == 'x = 5 ; print ( x ) ;') {
+      countdownTimer?.cancel();
+      isAnsweredCorrectly = true;
+      await saveScoreToPrefs(score);
+
+      setState(() {
+        level2Completed = true;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Correct! Level 2 Completed")),
+      );
+    } else {
+      if (score > 1) {
+        setState(() {
+          score--;
+        });
+        saveScoreToPrefs(score);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("❌ Incorrect. -1 point")),
+        );
+      } else {
+        setState(() {
+          score = 0;
+        });
+        countdownTimer?.cancel();
+        saveScoreToPrefs(score);
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text("💀 Game Over"),
+            content: const Text("You lost all your points."),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  resetGame();
+                },
+                child: const Text("Retry"),
+              )
+            ],
+          ),
+        );
+      }
+    }
   }
 
   String formatTime(int seconds) {
@@ -146,11 +180,21 @@ class _PythonLevel2State extends State<PythonLevel2> {
     return "$m:$s";
   }
 
+  String getPreviewCode() {
+    return droppedBlocks.join(' ');
+  }
+
+  @override
+  void dispose() {
+    countdownTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("🐍 Python - Level 2"),
+        title: const Text("🐍 Python - Level 2"),
         backgroundColor: Colors.teal,
         actions: gameStarted
             ? [
@@ -158,12 +202,13 @@ class _PythonLevel2State extends State<PythonLevel2> {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                Icon(Icons.timer),
-                SizedBox(width: 4),
+                const Icon(Icons.timer),
+                const SizedBox(width: 4),
                 Text(formatTime(remainingSeconds)),
-                SizedBox(width: 16),
-                Icon(Icons.star, color: Colors.yellowAccent),
-                Text(" $score", style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 16),
+                const Icon(Icons.star, color: Colors.yellowAccent),
+                Text(" $score",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -176,11 +221,26 @@ class _PythonLevel2State extends State<PythonLevel2> {
 
   Widget buildStartScreen() {
     return Center(
-      child: ElevatedButton.icon(
-        onPressed: startGame,
-        icon: Icon(Icons.play_arrow),
-        label: Text("Start Game"),
-        style: ElevatedButton.styleFrom(padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ElevatedButton.icon(
+            onPressed: level2Completed ? null : startGame,
+            icon: const Icon(Icons.play_arrow),
+            label: Text(level2Completed ? "Completed" : "Start Game"),
+            style: ElevatedButton.styleFrom(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+          ),
+          if (level2Completed)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text(
+                "✅ Level 2 already completed!",
+                style: TextStyle(color: Colors.green),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -194,203 +254,165 @@ class _PythonLevel2State extends State<PythonLevel2> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('📚 Short Story', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('📖 Story',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               TextButton.icon(
                 onPressed: () {
                   setState(() {
                     isTagalog = !isTagalog;
                   });
                 },
-                icon: Icon(Icons.translate),
+                icon: const Icon(Icons.translate),
                 label: Text(isTagalog ? 'English' : 'Tagalog'),
               ),
             ],
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 10),
           Text(
             isTagalog
-                ? 'Kilalanin si Zeke, ang batang programmer! Gusto niyang ilagay ang numerong 5 sa isang variable na x at i-print ito para magamit sa kanyang game score...'
-                : 'Meet Zeke, the young coder! Today, Zeke wants to assign the number 5 to a variable named x and print it out...',
-            style: TextStyle(fontSize: 16),
+                ? 'Si Zeke ay natututo na gumamit ng variables! Gusto niyang gumawa ng variable x na may value 5, tapos ipakita ito gamit ang print(x). Pwede mo ba siyang tulungan?'
+                : 'Zeke is learning how to use variables! He wants to create a variable x with value 5, then print it using print(x). Can you help him?',
             textAlign: TextAlign.justify,
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              isTagalog
-                  ? '🧩 Ipagdugtong ang mga code block para mabuo: x = 5 at i-print ang x'
-                  : '🧩 Match the puzzle blocks to build: x = 5 then print x',
-              style: TextStyle(fontSize: 18),
-              textAlign: TextAlign.center,
-            ),
+            style: const TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 20),
-          Center(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(correctSequence.length, (index) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: DragTarget<Map<String, dynamic>>(
-                      onAccept: (data) {
-                        setState(() {
-                          final existing = droppedBlocks[index];
-                          if (existing != null) {
-                            codeBlocks.add(existing);
-                          }
-                          droppedBlocks[index] = data;
-                          codeBlocks.remove(data);
-                        });
-                      },
-                      builder: (context, candidateData, rejectedData) {
-                        final block = droppedBlocks[index];
-                        final text = block?['text'];
-                        final shapeId = block?['id'] ?? index;
-                        return GestureDetector(
-                          onTap: () {
-                            if (block != null) {
-                              setState(() {
-                                codeBlocks.add(block);
-                                droppedBlocks[index] = null;
-                              });
-                            }
-                          },
-                          child: ClipPath(
-                            key: ValueKey('drop-$index-${block?['id'] ?? 'empty'}'),
-                            clipper: PuzzleClipper(shapeId),
-                            child: Container(
-                              width: 60,
-                              height: 60,
-                              color: text != null ? Colors.greenAccent : Colors.grey[300],
-                              alignment: Alignment.center,
-                              child: Text(
-                                text ?? '?',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: 'monospace',
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
+          const Text('🧩 Arrange the puzzle blocks to form: x = 5; print(x);',
+              style: TextStyle(fontSize: 18), textAlign: TextAlign.center),
           const SizedBox(height: 20),
-          Text('📄 Preview:'),
           Container(
+            height: 140,
             width: double.infinity,
-            constraints: BoxConstraints(minHeight: 60),
-            padding: EdgeInsets.all(10),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              border: Border.all(color: Colors.blueGrey, width: 2.5),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: DragTarget<String>(
+              onAccept: (data) {
+                if (!isAnsweredCorrectly) {
+                  setState(() {
+                    droppedBlocks.add(data);
+                    allBlocks.remove(data);
+                  });
+                }
+              },
+              builder: (context, candidateData, rejectedData) {
+                return Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: droppedBlocks.map((block) {
+                      return GestureDetector(
+                        onTap: () {
+                          if (!isAnsweredCorrectly) {
+                            setState(() {
+                              droppedBlocks.remove(block);
+                              allBlocks.add(block);
+                            });
+                          }
+                        },
+                        child: puzzleBlock(block, Colors.greenAccent),
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text('📝 Preview:',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          Container(
+            padding: const EdgeInsets.all(10),
+            width: double.infinity,
             color: Colors.grey[300],
             child: Text(
-              droppedBlocks.where((e) => e != null).map((e) => e!['text']).join(' ') +
-                  (droppedBlocks.every((e) => e != null) ? ' ;' : ''),
-              style: TextStyle(fontSize: 18, fontFamily: 'monospace'),
+              getPreviewCode(),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 18),
             ),
           ),
           const SizedBox(height: 20),
-          Center(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 12,
-              children: codeBlocks.map((block) {
-                return Draggable<Map<String, dynamic>>(
-                  data: block,
-                  feedback: puzzleBlock(block['text'], Colors.blueAccent, block['id'],
-                      key: ValueKey('drag-feedback-${block['id']}')),
-                  childWhenDragging: Opacity(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.center,
+            children: allBlocks.map((block) {
+              return isAnsweredCorrectly
+                  ? puzzleBlock(block, Colors.grey)
+                  : Draggable<String>(
+                data: block,
+                feedback: puzzleBlock(block, Colors.blueAccent),
+                childWhenDragging: Opacity(
                     opacity: 0.4,
-                    child: puzzleBlock(block['text'], Colors.blueAccent, block['id'],
-                        key: ValueKey('drag-dimmed-${block['id']}')),
-                  ),
-                  child: puzzleBlock(block['text'], Colors.blueAccent, block['id'],
-                      key: ValueKey('drag-${block['id']}')),
-                );
-              }).toList(),
-            ),
+                    child: puzzleBlock(block, Colors.blueAccent)),
+                child: puzzleBlock(block, Colors.blueAccent),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 30),
-          Center(
-            child: ElevatedButton.icon(
-              onPressed: checkAnswer,
-              icon: Icon(Icons.play_arrow),
-              label: Text("Run Code"),
-            ),
+          ElevatedButton.icon(
+            onPressed: isAnsweredCorrectly ? null : checkAnswer,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text("Run Code"),
           ),
+          if (!level2Completed)
+            TextButton(
+              onPressed: resetGame,
+              child: const Text("🔁 Retry"),
+            ),
+          if (level2Completed) // 🔑 kapag completed na lalabas yung Next Level button
+            ElevatedButton.icon(
+              onPressed: () {
+                // 🔑 Diretso sa Level 3
+                // Navigator.pushReplacement(
+                //   context,
+                //   MaterialPageRoute(
+                //     builder: (_) => const PythonLevel3(),
+                //   ),
+                // );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Next Level (Python 3) not yet linked")),
+                );
+              },
+              icon: const Icon(Icons.navigate_next),
+              label: const Text("Next Level"),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 12)),
+            ),
         ],
       ),
     );
   }
 
-  Widget puzzleBlock(String text, Color color, int shapeIndex, {Key? key}) {
-    return ClipPath(
-      key: key,
-      clipper: PuzzleClipper(shapeIndex),
-      child: Container(
-        width: 60,
-        height: 60,
+  Widget puzzleBlock(String text, Color color) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
         color: color,
-        alignment: Alignment.center,
-        child: Text(
-          text,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontFamily: 'monospace',
-            fontSize: 16,
-            color: Colors.black87,
-          ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+        border: Border.all(color: Colors.black45, width: 1.5),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 4,
+            offset: Offset(2, 2),
+          )
+        ],
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontFamily: 'monospace',
+          fontSize: 16,
         ),
       ),
     );
   }
-}
-
-class PuzzleClipper extends CustomClipper<Path> {
-  final int type;
-  PuzzleClipper(this.type);
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    switch (type % 3) {
-      case 0:
-        path.moveTo(0, size.height * 0.2);
-        path.lineTo(size.width * 0.3, 0);
-        path.lineTo(size.width * 0.7, 0);
-        path.lineTo(size.width, size.height * 0.2);
-        path.lineTo(size.width, size.height * 0.8);
-        path.lineTo(size.width * 0.7, size.height);
-        path.lineTo(size.width * 0.3, size.height);
-        path.lineTo(0, size.height * 0.8);
-        break;
-      case 1:
-        path.moveTo(0, 0);
-        path.lineTo(size.width, 0);
-        path.lineTo(size.width, size.height * 0.5);
-        path.lineTo(size.width * 0.5, size.height);
-        path.lineTo(0, size.height);
-        break;
-      default:
-        path.moveTo(0, size.height);
-        path.lineTo(0, size.height * 0.3);
-        path.lineTo(size.width * 0.5, 0);
-        path.lineTo(size.width, size.height * 0.3);
-        path.lineTo(size.width, size.height);
-        break;
-    }
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

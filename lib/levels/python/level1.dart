@@ -1,6 +1,9 @@
+import 'package:cpstn/levels/python/level2.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+
+
 
 class PythonLevel1 extends StatefulWidget {
   const PythonLevel1({super.key});
@@ -99,23 +102,22 @@ class _PythonLevel1State extends State<PythonLevel1> {
 
   Future<void> saveScoreToPrefs(int score) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('python_level1_score', score); // 🔑 lowercase lahat
+    await prefs.setInt('python_level1_score', score);
 
     if (score > 0) {
-      await prefs.setBool('python_level1_completed', true); // 🔑 lowercase
+      await prefs.setBool('python_level1_completed', true);
     }
   }
 
   Future<void> loadScoreFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedScore = prefs.getInt('python_level1_score'); // 🔑 lowercase
-    final completed = prefs.getBool('python_level1_completed') ?? false; // 🔑 lowercase
+    final savedScore = prefs.getInt('python_level1_score');
+    final completed = prefs.getBool('python_level1_completed') ?? false;
     setState(() {
       if (savedScore != null) score = savedScore;
       level1Completed = completed;
     });
   }
-
 
   void checkAnswer() async {
     if (isAnsweredCorrectly || droppedBlocks.isEmpty) return;
@@ -130,21 +132,8 @@ class _PythonLevel1State extends State<PythonLevel1> {
         level1Completed = true;
       });
 
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("✅ Correct!"),
-          content: const Text("Well done Pythonista!"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, '/python_level2');
-              },
-              child: const Text("Next Level"),
-            )
-          ],
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Correct! Level Completed")),
       );
     } else {
       if (score > 1) {
@@ -362,10 +351,28 @@ class _PythonLevel1State extends State<PythonLevel1> {
             icon: const Icon(Icons.play_arrow),
             label: const Text("Run Code"),
           ),
-          TextButton(
-            onPressed: level1Completed ? null : resetGame,
-            child: const Text("🔁 Retry"),
-          ),
+          if (!level1Completed)
+            TextButton(
+              onPressed: resetGame,
+              child: const Text("🔁 Retry"),
+            ),
+          if (level1Completed) // 🔑 kapag completed na, lalabas yung Next Level button
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PythonLevel2(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.navigate_next),
+              label: const Text("Next Level"),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 12)),
+            ),
         ],
       ),
     );
