@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
+
 class GameScreen extends StatefulWidget {
   final String language;
   final int level;
@@ -40,28 +41,28 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _setupChallenge() {
-    switch ('${widget.language}-Level ${widget.level}') {
-      case 'Python-Level 1':
+    switch ('${widget.language} - Level ${widget.level}') {
+      case 'Python - Level 1':
         codeBlocks = ['print', '(', '"Hello World"', ')'];
         correctAnswer = 'print("Hello World")';
         challengeDescription = 'Arrange the blocks to print "Hello World"';
         break;
-      case 'Python-Level 2':
+      case 'Python - Level 2':
         codeBlocks = ['def', 'hello', '(', ')', ':', 'print', '(', '"Hi"', ')'];
         correctAnswer = 'def hello(): print("Hi")';
         challengeDescription = 'Create a function that prints "Hi"';
         break;
-      case 'Java-Level 1':
+      case 'Java - Level 1':
         codeBlocks = ['System.out.println', '(', '"Java"', ')', ';'];
         correctAnswer = 'System.out.println("Java");';
         challengeDescription = 'Print "Java" to the console';
         break;
-      case 'C++-Level 1':
+      case 'C++ - Level 1':
         codeBlocks = ['cout', '<<', '"C++"', '<<', 'endl', ';'];
         correctAnswer = 'cout << "C++" << endl;';
         challengeDescription = 'Print "C++" using cout';
         break;
-      case 'PHP-Level 1':
+      case 'PHP - Level 1':
         codeBlocks = ['echo', '"PHP"', ';'];
         correctAnswer = 'echo "PHP";';
         challengeDescription = 'Print "PHP" using echo';
@@ -71,6 +72,7 @@ class _GameScreenState extends State<GameScreen> {
         correctAnswer = 'print("Default")';
         challengeDescription = 'Complete the code challenge';
     }
+
     codeBlocks.shuffle();
   }
 

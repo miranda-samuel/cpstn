@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 👉 import mo yung level file (Python Level 1)
+import 'package:cpstn/levels/python/level1.dart';
+
 class LevelSelectionScreen extends StatefulWidget {
   const LevelSelectionScreen({super.key});
 
@@ -28,8 +31,12 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
     final loadedScores = <String, int>{};
 
     for (int i = 1; i <= totalLevels; i++) {
-      final key = '${selectedLanguage.toLowerCase()}_level${i}_score';
-      loadedScores[key] = prefs.getInt(key) ?? 0;
+      final scoreKey = '${selectedLanguage.toLowerCase()}_level${i}_score';
+      final completedKey =
+          '${selectedLanguage.toLowerCase()}_level${i}_completed';
+
+      loadedScores[scoreKey] = prefs.getInt(scoreKey) ?? 0;
+      loadedScores[completedKey] = prefs.getBool(completedKey) == true ? 1 : 0;
     }
 
     if (mounted) {
@@ -41,12 +48,13 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
   }
 
   bool _isLevelUnlocked(int levelIndex) {
-    // Level 1 is always unlocked
     if (levelIndex == 1) return true;
 
-    // Check if previous level was completed with at least 1 star
-    final prevLevelKey = '${selectedLanguage.toLowerCase()}_level${levelIndex - 1}_score';
-    return (scores[prevLevelKey] ?? 0) > 0;
+    final prevCompletedKey =
+        '${selectedLanguage.toLowerCase()}_level${levelIndex - 1}_completed';
+
+    // ✅ unlock if previous level was marked as completed
+    return scores[prevCompletedKey] == 1;
   }
 
   String _getLevelRoute(int levelIndex) {
@@ -55,13 +63,22 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
 
   Widget _buildLevelCard(int levelIndex) {
     final isUnlocked = _isLevelUnlocked(levelIndex);
-    final scoreKey = '${selectedLanguage.toLowerCase()}_level${levelIndex}_score';
+    final scoreKey =
+        '${selectedLanguage.toLowerCase()}_level${levelIndex}_score';
+    final completedKey =
+        '${selectedLanguage.toLowerCase()}_level${levelIndex}_completed';
+
     final score = scores[scoreKey] ?? 0;
-    final stars = List.generate(3, (starIndex) => Icon(
-      starIndex < score ? Icons.star : Icons.star_border,
-      color: Colors.amber,
-      size: 20,
-    ));
+    final completed = scores[completedKey] == 1;
+
+    final stars = List.generate(
+      3,
+          (starIndex) => Icon(
+        starIndex < score ? Icons.star : Icons.star_border,
+        color: Colors.amber,
+        size: 20,
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -72,10 +89,22 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: isUnlocked
-              ? () => Navigator.pushNamed(
-            context,
-            _getLevelRoute(levelIndex),
-          )
+              ? () {
+            // 👉 special case: Python Level 1
+            if (selectedLanguage.toLowerCase() == "python" &&
+                levelIndex == 1) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PythonLevel1()),
+              ).then((_) => _loadScores()); // refresh after return
+            } else {
+              // 👉 fallback sa generic route
+              Navigator.pushNamed(
+                context,
+                _getLevelRoute(levelIndex),
+              ).then((_) => _loadScores()); // refresh after return
+            }
+          }
               : () => _showLockedDialog(context, levelIndex),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -91,9 +120,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    isUnlocked
-                        ? Icons.code
-                        : Icons.lock,
+                    isUnlocked ? Icons.code : Icons.lock,
                     color: isUnlocked
                         ? Colors.teal.shade700
                         : Colors.grey.shade600,
@@ -113,14 +140,20 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                         ),
                       ),
                       Row(children: stars),
+                      if (completed)
+                        const Text(
+                          "✅ Completed",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.green,
+                          ),
+                        ),
                     ],
                   ),
                 ),
                 Icon(
                   Icons.arrow_forward_ios,
-                  color: isUnlocked
-                      ? Colors.teal.shade700
-                      : Colors.grey,
+                  color: isUnlocked ? Colors.teal.shade700 : Colors.grey,
                 ),
               ],
             ),
@@ -176,7 +209,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Select Your Level',
                 style: TextStyle(
                   fontSize: 24,
