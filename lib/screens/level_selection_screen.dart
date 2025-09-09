@@ -10,6 +10,7 @@ import '../levels/cpp/level2.dart';
 import '../levels/java/level1.dart';
 import '../levels/java/level2.dart';
 import '../levels/php/level1.dart';
+import '../levels/php/level2.dart';
 import '../levels/sql/level1.dart' hide PhpLevel1;
 import '../levels/sql/level2.dart' hide PhpLevel1;
 
@@ -155,8 +156,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                 }
                 break;
 
-              case "cpp":
-              case "c++": // para kahit alin gumana
+              case "c++":
                 switch (levelIndex) {
                   case 1:
                     Navigator.push(
@@ -186,6 +186,13 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                       context,
                       MaterialPageRoute(
                           builder: (_) => const PhpLevel1()),
+                    ).then((_) => _loadScores());
+                    break;
+                  case 2:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PhpLevel2()),
                     ).then((_) => _loadScores());
                     break;
                   default:
@@ -258,7 +265,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                       Row(children: stars),
                       if (completed)
                         const Text(
-                          "✅ Completed",
+                          "",
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.green,

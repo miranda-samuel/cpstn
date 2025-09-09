@@ -1,9 +1,9 @@
+import 'package:cpstn/levels/python/level3.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
-
-// 🔑 Import mo dito yung susunod na level
-// import 'python_level3.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class PythonLevel2 extends StatefulWidget {
   const PythonLevel2({super.key});
@@ -33,16 +33,14 @@ class _PythonLevel2State extends State<PythonLevel2> {
 
   void resetBlocks() {
     allBlocks = [
-      'x',
-      '=',
-      '5',
+      'for',
+      'i',
+      'in',
+      'range(5):',
       'print',
-      '(',
-      'x',
-      ')',
-      ';',
+      '(i)',
       'printx',
-      '7'
+      '("Hi")',
     ]..shuffle();
   }
 
@@ -65,11 +63,13 @@ class _PythonLevel2State extends State<PythonLevel2> {
         if (remainingSeconds == 30 && score > 0) {
           score--;
           saveScoreToPrefs(score);
+          sendScoreToBackend(score);
         }
         if (remainingSeconds <= 0) {
           score = 0;
           timer.cancel();
           saveScoreToPrefs(score);
+          sendScoreToBackend(score);
           showDialog(
             context: context,
             builder: (_) => AlertDialog(
@@ -123,37 +123,62 @@ class _PythonLevel2State extends State<PythonLevel2> {
     });
   }
 
+  Future<void> sendScoreToBackend(int score) async {
+    final username = await getUsername();
+    if (username == null) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://192.168.100.92/cpstn_backend/api/update_score.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'score': score}),
+      );
+
+      final data = jsonDecode(response.body);
+      if (!(data['status'] ?? false)) {
+        print('Failed to update backend score: ${data['message']}');
+      }
+    } catch (e) {
+      print('Error sending score to backend: $e');
+    }
+  }
+
+  Future<String?> getUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('username');
+  }
+
   void checkAnswer() async {
     if (isAnsweredCorrectly || droppedBlocks.isEmpty) return;
 
     String answer = droppedBlocks.join(' ');
-    if (answer == 'x = 5 ; print ( x ) ;') {
+    // 🔹 Correct answer for Level 2
+    if (answer == 'for i in range(5): print (i)') {
       countdownTimer?.cancel();
       isAnsweredCorrectly = true;
       await saveScoreToPrefs(score);
+      await sendScoreToBackend(score);
 
       setState(() {
         level2Completed = true;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Correct! Level 2 Completed")),
+        const SnackBar(content: Text("✅ Correct! Level Completed")),
       );
     } else {
       if (score > 1) {
-        setState(() {
-          score--;
-        });
+        setState(() { score--; });
         saveScoreToPrefs(score);
+        sendScoreToBackend(score);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("❌ Incorrect. -1 point")),
         );
       } else {
-        setState(() {
-          score = 0;
-        });
+        setState(() { score = 0; });
         countdownTimer?.cancel();
         saveScoreToPrefs(score);
+        sendScoreToBackend(score);
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
@@ -195,7 +220,7 @@ class _PythonLevel2State extends State<PythonLevel2> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("🐍 Python - Level 2"),
-        backgroundColor: Colors.teal,
+        backgroundColor: Colors.green,
         actions: gameStarted
             ? [
           Padding(
@@ -207,15 +232,17 @@ class _PythonLevel2State extends State<PythonLevel2> {
                 Text(formatTime(remainingSeconds)),
                 const SizedBox(width: 16),
                 const Icon(Icons.star, color: Colors.yellowAccent),
-                Text(" $score",
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(" $score", style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
         ]
             : [],
       ),
-      body: gameStarted ? buildGameUI() : buildStartScreen(),
+      body: Container(
+        color: Colors.black,
+        child: gameStarted ? buildGameUI() : buildStartScreen(),
+      ),
     );
   }
 
@@ -229,15 +256,16 @@ class _PythonLevel2State extends State<PythonLevel2> {
             icon: const Icon(Icons.play_arrow),
             label: Text(level2Completed ? "Completed" : "Start Game"),
             style: ElevatedButton.styleFrom(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                backgroundColor: Colors.tealAccent,
+                foregroundColor: Colors.black),
           ),
           if (level2Completed)
             const Padding(
               padding: EdgeInsets.only(top: 10),
               child: Text(
                 "✅ Level 2 already completed!",
-                style: TextStyle(color: Colors.green),
+                style: TextStyle(color: Colors.greenAccent),
               ),
             ),
         ],
@@ -254,37 +282,35 @@ class _PythonLevel2State extends State<PythonLevel2> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('📖 Story',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('📖 Short Story',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
               TextButton.icon(
                 onPressed: () {
-                  setState(() {
-                    isTagalog = !isTagalog;
-                  });
+                  setState(() { isTagalog = !isTagalog; });
                 },
-                icon: const Icon(Icons.translate),
-                label: Text(isTagalog ? 'English' : 'Tagalog'),
+                icon: const Icon(Icons.translate, color: Colors.white),
+                label: Text(isTagalog ? 'English' : 'Tagalog', style: const TextStyle(color: Colors.white)),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
             isTagalog
-                ? 'Si Zeke ay natututo na gumamit ng variables! Gusto niyang gumawa ng variable x na may value 5, tapos ipakita ito gamit ang print(x). Pwede mo ba siyang tulungan?'
-                : 'Zeke is learning how to use variables! He wants to create a variable x with value 5, then print it using print(x). Can you help him?',
+                ? 'Si Zeke ay gusto ngayong gumawa ng loop sa Python! Gusto niyang i-print ang mga numero mula 0 hanggang 4 gamit ang for loop. Pwede mo ba siyang tulungan buuin ang tamang code sa pamamagitan ng pag-aayos ng mga puzzle blocks sa ibaba?'
+                : 'Zeke now wants to make a loop in Python! He wants to print numbers from 0 to 4 using a for loop. Can you help him build the correct code by arranging the puzzle blocks below?',
             textAlign: TextAlign.justify,
-            style: const TextStyle(fontSize: 16),
+            style: const TextStyle(fontSize: 16, color: Colors.white),
           ),
           const SizedBox(height: 20),
-          const Text('🧩 Arrange the puzzle blocks to form: x = 5; print(x);',
-              style: TextStyle(fontSize: 18), textAlign: TextAlign.center),
+          const Text('🧩 Arrange the puzzle blocks to form: for i in range(5): print(i)',
+              style: TextStyle(fontSize: 18, color: Colors.white), textAlign: TextAlign.center),
           const SizedBox(height: 20),
           Container(
             height: 140,
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
+              color: Colors.grey[900],
               border: Border.all(color: Colors.blueGrey, width: 2.5),
               borderRadius: BorderRadius.circular(20),
             ),
@@ -320,15 +346,14 @@ class _PythonLevel2State extends State<PythonLevel2> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text('📝 Preview:',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('📝 Preview:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
           Container(
             padding: const EdgeInsets.all(10),
             width: double.infinity,
-            color: Colors.grey[300],
+            color: Colors.grey[800],
             child: Text(
               getPreviewCode(),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 18),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 18, color: Colors.white),
             ),
           ),
           const SizedBox(height: 20),
@@ -342,9 +367,7 @@ class _PythonLevel2State extends State<PythonLevel2> {
                   : Draggable<String>(
                 data: block,
                 feedback: puzzleBlock(block, Colors.blueAccent),
-                childWhenDragging: Opacity(
-                    opacity: 0.4,
-                    child: puzzleBlock(block, Colors.blueAccent)),
+                childWhenDragging: Opacity(opacity: 0.4, child: puzzleBlock(block, Colors.blueAccent)),
                 child: puzzleBlock(block, Colors.blueAccent),
               );
             }).toList(),
@@ -359,27 +382,23 @@ class _PythonLevel2State extends State<PythonLevel2> {
             TextButton(
               onPressed: resetGame,
               child: const Text("🔁 Retry"),
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
             ),
-          if (level2Completed) // 🔑 kapag completed na lalabas yung Next Level button
+          if (level2Completed)
             ElevatedButton.icon(
               onPressed: () {
-                // 🔑 Diretso sa Level 3
-                // Navigator.pushReplacement(
-                //   context,
-                //   MaterialPageRoute(
-                //     builder: (_) => const PythonLevel3(),
-                //   ),
-                // );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Next Level (Python 3) not yet linked")),
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PythonLevel3(),
+                  ),
                 );
               },
               icon: const Icon(Icons.navigate_next),
               label: const Text("Next Level"),
               style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
             ),
         ],
       ),

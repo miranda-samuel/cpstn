@@ -208,7 +208,7 @@ class _JavaLevel2State extends State<JavaLevel2> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("☕ Java - Level 2"),
-        backgroundColor: Colors.brown,
+        backgroundColor: Colors.red,
         actions: gameStarted
             ? [
           Padding(

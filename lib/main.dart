@@ -109,7 +109,7 @@ class CodeSnapApp extends StatelessWidget {
             final level = int.tryParse(segments[2]);
 
             if (level != null) {
-              final authProvider = Provider.of<AuthProvider>(navigatorKey.currentContext!, listen: false);
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
               final username = authProvider.username ?? 'guest';
 
               return MaterialPageRoute(

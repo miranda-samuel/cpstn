@@ -1,3 +1,4 @@
+import 'package:cpstn/levels/java/level2.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
@@ -30,11 +31,11 @@ class _JavaLevel1State extends State<JavaLevel1> {
 
   void resetBlocks() {
     allBlocks = [
-      'System.out.println',
+      'System.out.print',
       '("Hello World");',
-      'print',
-      '("Hi Java");',
-      'System.print("Hello");',
+      'System.out.println',
+      '("Hi World");',
+      'System.out.print("Hello");',
       ';',
     ]..shuffle();
   }
@@ -99,16 +100,16 @@ class _JavaLevel1State extends State<JavaLevel1> {
 
   Future<void> saveScoreToPrefs(int score) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('java_level1_score', score); // ✅ Java key
+    await prefs.setInt('java_level1_score', score);
 
     if (score > 0) {
-      await prefs.setBool('java_level1_completed', true); // ✅ Java key
+      await prefs.setBool('java_level1_completed', true);
     }
   }
 
   Future<void> loadScoreFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedScore = prefs.getInt('java_level1_score'); // ✅ Java key
+    final savedScore = prefs.getInt('java_level1_score');
     final completed = prefs.getBool('java_level1_completed') ?? false;
     setState(() {
       if (savedScore != null) score = savedScore;
@@ -120,7 +121,7 @@ class _JavaLevel1State extends State<JavaLevel1> {
     if (isAnsweredCorrectly || droppedBlocks.isEmpty) return;
 
     String answer = droppedBlocks.join(' ');
-    if (answer == 'System.out.println ("Hello World");') {
+    if (answer == 'System.out.print ("Hello World");') {
       countdownTimer?.cancel();
       isAnsweredCorrectly = true;
       await saveScoreToPrefs(score);
@@ -129,21 +130,8 @@ class _JavaLevel1State extends State<JavaLevel1> {
         level1Completed = true;
       });
 
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("✅ Correct!"),
-          content: const Text("Well done, Java Programmer!"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, '/java_level2');
-              },
-              child: const Text("Next Level"),
-            )
-          ],
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Correct! Level Completed")),
       );
     } else {
       if (score > 1) {
@@ -201,7 +189,7 @@ class _JavaLevel1State extends State<JavaLevel1> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("☕ Java - Level 1"),
-        backgroundColor: Colors.deepOrange,
+        backgroundColor: Colors.red,
         actions: gameStarted
             ? [
           Padding(
@@ -276,14 +264,13 @@ class _JavaLevel1State extends State<JavaLevel1> {
           const SizedBox(height: 10),
           Text(
             isTagalog
-                ? 'Si Zeke ay unang natututo ng Java! Gusto niyang ipakita ang kanyang unang output gamit ang System.out.println("Hello World"); Pwede mo ba siyang tulungan buuin ang tamang code?'
-                : 'Zeke is learning Java for the first time! He wants to display his first output using System.out.println("Hello World"); Can you help him build the correct code?',
+                ? 'Si Zeke ay natututo ng Java! Gusto niyang ipakita ang kanyang unang output gamit ang System.out.print("Hello World");. Pwede mo ba siyang tulungan buuin ang tamang code?'
+                : 'Zeke is learning Java for the first time! He wants to display his first output using System.out.print("Hello World");. Can you help him build the correct code?',
             textAlign: TextAlign.justify,
             style: const TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 20),
-          const Text(
-              '🧩 Arrange the puzzle blocks to form: System.out.println("Hello World");',
+          const Text('🧩 Arrange the puzzle blocks to form: System.out.print("Hello World");',
               style: TextStyle(fontSize: 18), textAlign: TextAlign.center),
           const SizedBox(height: 20),
           Container(
@@ -362,10 +349,28 @@ class _JavaLevel1State extends State<JavaLevel1> {
             icon: const Icon(Icons.play_arrow),
             label: const Text("Run Code"),
           ),
-          TextButton(
-            onPressed: level1Completed ? null : resetGame,
-            child: const Text("🔁 Retry"),
-          ),
+          if (!level1Completed)
+            TextButton(
+              onPressed: resetGame,
+              child: const Text("🔁 Retry"),
+            ),
+          if (level1Completed) // 🔑 kapag completed na, lalabas yung Next Level button
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const JavaLevel2(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.navigate_next),
+              label: const Text("Next Level"),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 12)),
+            ),
         ],
       ),
     );

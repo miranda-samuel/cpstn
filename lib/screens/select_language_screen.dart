@@ -43,7 +43,7 @@ class SelectLanguageScreen extends StatelessWidget {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Choose Language'),
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.blueGrey,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(

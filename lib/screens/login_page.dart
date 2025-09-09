@@ -37,6 +37,8 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (!mounted) return;
+
+      // Login success
       Navigator.pushReplacementNamed(context, '/home');
     } on AuthException catch (e) {
       if (!mounted) return;
@@ -45,9 +47,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       _showErrorMessage('Login failed: ${e.toString()}');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -70,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // 🌈 Gradient Background
+          // Gradient Background
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -81,7 +81,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
 
-          // 🌀 Decorative Circles
+          // Decorative Circles
           Positioned(
             top: -80,
             left: -40,
@@ -107,7 +107,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
 
-          // 🔐 Login Form
+          // Login Form
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 60),
@@ -116,11 +116,10 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // 🐍 CodeSnap Logo
                     const _CodeSnapLogo(),
                     const SizedBox(height: 30),
 
-                    Text(
+                    const Text(
                       'Welcome back!',
                       style: TextStyle(
                         fontSize: 20,
@@ -130,7 +129,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 40),
 
-                    // 🔤 Username Field
+                    // Username Field
                     TextFormField(
                       key: const Key('usernameField'),
                       controller: _usernameController,
@@ -144,10 +143,8 @@ class _LoginPageState extends State<LoginPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 15,
-                          horizontal: 20,
-                        ),
+                        contentPadding:
+                        const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -161,7 +158,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // 🔒 Password Field
+                    // Password Field
                     TextFormField(
                       key: const Key('passwordField'),
                       controller: _passwordController,
@@ -173,14 +170,11 @@ class _LoginPageState extends State<LoginPage> {
                         prefixIcon: const Icon(Icons.lock),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility
-                                : Icons.visibility_off,
+                            _obscurePassword ? Icons.visibility : Icons.visibility_off,
                             color: Colors.grey,
                           ),
-                          onPressed: () => setState(
-                                  () => _obscurePassword = !_obscurePassword
-                          ),
+                          onPressed: () =>
+                              setState(() => _obscurePassword = !_obscurePassword),
                         ),
                         filled: true,
                         fillColor: Colors.white,
@@ -188,29 +182,25 @@ class _LoginPageState extends State<LoginPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 15,
-                          horizontal: 20,
-                        ),
+                        contentPadding:
+                        const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your password';
                         }
                         if (value.length < 4) {
-                          return 'Password must be at least 6 characters';
+                          return 'Password must be at least 4 characters';
                         }
                         return null;
                       },
                       onFieldSubmitted: (_) {
-                        if (!_isLoading) {
-                          _login(context);
-                        }
+                        if (!_isLoading) _login(context);
                       },
                     ),
                     const SizedBox(height: 30),
 
-                    // ✅ Login Button
+                    // Login Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -243,7 +233,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 20),
 
-                    // 🔄 Sign Up Navigation
+                    // Sign Up Navigation
                     TextButton(
                       key: const Key('signupNavigateButton'),
                       onPressed: _isLoading
@@ -299,12 +289,8 @@ class _CodeSnapLogo extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: Colors.green[800],
               fontFamily: 'monospace',
-              shadows: [
-                Shadow(
-                  offset: const Offset(1, 2),
-                  blurRadius: 3,
-                  color: Colors.black26,
-                )
+              shadows: const [
+                Shadow(offset: Offset(1, 2), blurRadius: 3, color: Colors.black26)
               ],
             ),
           ),

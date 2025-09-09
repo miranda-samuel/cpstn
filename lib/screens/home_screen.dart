@@ -1,11 +1,15 @@
+import 'dart:async';
+import 'package:cpstn/screens/select_language_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../providers/auth_provider.dart';
+import 'UserDetailScreen.dart';
 import 'login_page.dart';
 import 'profile_screen.dart';
-import 'game_screen.dart';
+import 'level_selection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,133 +24,83 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color accentColor = Colors.tealAccent;
 
   int _userScore = 0;
-  int _completedChallenges = 0;
   List<String> _achievements = [];
   List<_LeaderboardUser> _leaderboardUsers = [];
+
+  final String backendUrl = "http://192.168.100.92/cpstn_backend/api";
 
   @override
   void initState() {
     super.initState();
-    _loadGameData();
-    _loadLeaderboardData();
-  }
 
-  Future<void> _loadGameData() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final prefs = await SharedPreferences.getInstance();
-    final languages = ['python', 'java', 'c++', 'php', 'sql'];
-    final username = authProvider.username ?? 'guest';
+    // Initial load
+    _refreshData();
 
-    int totalScore = 0;
-    int completedChallenges = 0;
-    List<String> achievements = [];
-
-    for (var language in languages) {
-      for (int level = 1; level <= 5; level++) {
-        final key = '${username}_${language}_level${level}_score';
-        final score = prefs.getInt(key) ?? 0;
-        if (score > 0) {
-          completedChallenges++;
-          totalScore += score * 10;
-        }
+    // Auto refresh every 1 second
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        _refreshData();
+      } else {
+        timer.cancel();
       }
-    }
-
-    if (completedChallenges >= 1) achievements.add('Beginner Coder');
-    if (completedChallenges >= 5) achievements.add('Code Explorer');
-    if (completedChallenges >= 10) achievements.add('Master Programmer');
-
-    int perfectScores = 0;
-    for (var language in languages) {
-      for (int level = 1; level <= 5; level++) {
-        final key = '${username}_${language}_level${level}_score';
-        if (prefs.getInt(key) == 3) perfectScores++;
-      }
-    }
-    if (perfectScores >= 3) achievements.add('Perfectionist');
-    if (perfectScores >= 1) achievements.add('Three Star Coder');
-
-    setState(() {
-      _userScore = totalScore;
-      _completedChallenges = completedChallenges;
-      _achievements = achievements;
     });
   }
 
-  Future<void> _loadLeaderboardData() async {
+  // ✅ Load user data from backend
+  Future<void> _loadGameData() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final prefs = await SharedPreferences.getInstance();
-    final languages = ['python', 'java', 'c++', 'php', 'sql'];
+    final username = authProvider.username ?? 'guest';
 
     try {
-      final users = prefs.getStringList('users') ?? [];
-      final leaderboardUsers = <_LeaderboardUser>[];
+      final response =
+      await http.get(Uri.parse('$backendUrl/scores.php?username=$username'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
 
-      final currentUsername = authProvider.username;
-      if (currentUsername != null) {
-        int currentUserScore = 0;
-        for (var language in languages) {
-          for (int level = 1; level <= 5; level++) {
-            final key = '${currentUsername}_${language}_level${level}_score';
-            currentUserScore += (prefs.getInt(key) ?? 0) * 10;
-          }
-        }
-
-        if (currentUserScore > 0) {
-          leaderboardUsers.add(
-            _LeaderboardUser(
-              name: authProvider.name ?? currentUsername,
-              score: currentUserScore,
-              profileImagePath: authProvider.profileImagePath,
-              isCurrentUser: true,
-            ),
-          );
-        }
-      }
-
-      for (var userString in users) {
-        final parts = userString.split(':');
-        final username = parts[0];
-        if (username == authProvider.username) continue;
-
-        int userScore = 0;
-        for (var language in languages) {
-          for (int level = 1; level <= 5; level++) {
-            final key = '${username}_${language}_level${level}_score';
-            userScore += (prefs.getInt(key) ?? 0) * 10;
-          }
-        }
-
-        if (userScore > 0) {
-          leaderboardUsers.add(
-            _LeaderboardUser(
-              name: parts.length > 1 ? parts[1] : username,
-              score: userScore,
-              profileImagePath: prefs.getString('profile_image_$username'),
-              isCurrentUser: false,
-            ),
-          );
-        }
-      }
-
-      leaderboardUsers.sort((a, b) => b.score.compareTo(a.score));
-
-      setState(() {
-        _leaderboardUsers = leaderboardUsers;
-      });
-    } catch (e) {
-      if (authProvider.username != null && _userScore > 0) {
         setState(() {
-          _leaderboardUsers = [
-            _LeaderboardUser(
-              name: authProvider.name ?? 'You',
-              score: _userScore,
-              profileImagePath: authProvider.profileImagePath,
-              isCurrentUser: true,
-            )
-          ];
+          _userScore = data['score'] ?? 0;
+
+          // ✅ Kung wala pang laro, huwag ipakita achievements
+          if ((_userScore == 0) &&
+              ((data['completedChallenges'] ?? 0) == 0) &&
+              ((data['perfectScores'] ?? 0) == 0)) {
+            _achievements = [];
+          } else {
+            _achievements = List<String>.from(data['achievements'] ?? []);
+          }
         });
       }
+    } catch (e) {
+      print("Error loading game data: $e");
+    }
+  }
+
+  // ✅ Load leaderboard from backend
+  Future<void> _loadLeaderboardData() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    try {
+      final response =
+      await http.get(Uri.parse('$backendUrl/leaderboard.php'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        final currentUsername = authProvider.username;
+
+        List<_LeaderboardUser> leaderboardUsers = data.map((user) {
+          return _LeaderboardUser(
+            name: user['name'],
+            score: user['score'],
+            profileImagePath: user['profileImagePath'],
+            isCurrentUser: user['name'] == currentUsername,
+          );
+        }).toList();
+
+        setState(() {
+          _leaderboardUsers = leaderboardUsers;
+        });
+      }
+    } catch (e) {
+      print("Error loading leaderboard: $e");
     }
   }
 
@@ -155,14 +109,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadLeaderboardData();
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text(
-          'CodeSnap',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+        title: Center(
+          child: _CodeSnapLogo(), // 🔹 dito na ang custom logo
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -189,21 +143,43 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const SizedBox(height: 20),
               _UserWelcomeCard(score: _userScore, achievements: _achievements),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.tealAccent,
+                    foregroundColor: Colors.black,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: const Icon(Icons.code),
+                  label: const Text(
+                    'Start Coding',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SelectLanguageScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
               const SizedBox(height: 30),
-              _buildMainActionButton(context),
-              const SizedBox(height: 40),
               _buildLeaderboardSection(context),
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showQuickStartMenu(context),
-        backgroundColor: accentColor,
-        child: const Icon(Icons.add, color: Colors.white, size: 28),
-      ),
     );
   }
+
 
   Widget _buildProfileMenu(BuildContext context) {
     return PopupMenuButton<String>(
@@ -211,55 +187,27 @@ class _HomeScreenState extends State<HomeScreen> {
       onSelected: (value) => _handleMenuSelection(context, value),
       itemBuilder: (context) => [
         const PopupMenuItem(
-          value: 'Profile',
-          child: ListTile(
-            leading: Icon(Icons.person_outline),
-            title: Text('Profile'),
-          ),
-        ),
+            value: 'Profile',
+            child: ListTile(
+                leading: Icon(Icons.person_outline),
+                title: Text('Profile'))),
         const PopupMenuItem(
-          value: 'Settings',
-          child: ListTile(
-            leading: Icon(Icons.settings_outlined),
-            title: Text('Settings'),
-          ),
-        ),
+            value: 'Settings',
+            child: ListTile(
+                leading: Icon(Icons.settings_outlined),
+                title: Text('Settings'))),
         const PopupMenuItem(
-          value: 'Help',
-          child: ListTile(
-            leading: Icon(Icons.help_outline),
-            title: Text('Help & Feedback'),
-          ),
-        ),
+            value: 'Help',
+            child: ListTile(
+                leading: Icon(Icons.help_outline),
+                title: Text('Help & Feedback'))),
         const PopupMenuItem(
-          value: 'Logout',
-          child: ListTile(
-            leading: Icon(Icons.logout, color: Colors.red),
-            title: Text('Logout',
-                style: TextStyle(color: Colors.red)),
-          ),
-        ),
+            value: 'Logout',
+            child: ListTile(
+                leading: Icon(Icons.logout, color: Colors.red),
+                title: Text('Logout',
+                    style: TextStyle(color: Colors.red)))),
       ],
-    );
-  }
-
-  Widget _buildMainActionButton(BuildContext context) {
-    return ElevatedButton.icon(
-      icon: const Icon(Icons.play_arrow, size: 26),
-      label: const Text('Start Coding',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-      onPressed: () => Navigator.pushNamed(context, '/select_language')
-          .then((_) => _refreshData()),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: accentColor,
-        foregroundColor: Colors.white,
-        padding:
-        const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        shape:
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-        elevation: 5,
-        shadowColor: accentColor.withOpacity(0.4),
-      ),
     );
   }
 
@@ -271,14 +219,16 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               children: const [
-                Icon(Icons.leaderboard,
-                    color: Colors.amberAccent, size: 28),
+                Icon(Icons.leaderboard, color: Colors.amberAccent, size: 28),
                 SizedBox(width: 10),
-                Text('Leaderboard',
-                    style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white)),
+                Text(
+                  'Leaderboard',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
               ],
             ),
           ),
@@ -286,39 +236,25 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95),
-                borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 15,
-                      offset: const Offset(0, -5))
-                ],
+                color: Colors.black.withOpacity(0.2), // 🔲 Block-style background
+                borderRadius: BorderRadius.circular(16),
               ),
               child: _leaderboardUsers.isEmpty
                   ? Center(
-                  child: Text('No active users found',
-                      style: TextStyle(
-                          color: Colors.grey[600], fontSize: 16)))
-                  : ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20)),
-                child: RefreshIndicator(
-                  onRefresh: _loadLeaderboardData,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.only(top: 16),
-                    itemCount: _leaderboardUsers.length,
-                    separatorBuilder: (context, index) => Divider(
-                        height: 1,
-                        color: Colors.grey[300],
-                        indent: 80),
-                    itemBuilder: (context, index) =>
-                        _buildLeaderboardItem(
-                            _leaderboardUsers[index], index),
-                  ),
+                child: Text(
+                  'No active users found',
+                  style: TextStyle(color: Colors.grey[300], fontSize: 16),
                 ),
+              )
+                  : ListView.separated(
+                padding: const EdgeInsets.only(top: 8),
+                itemCount: _leaderboardUsers.length,
+                separatorBuilder: (context, index) =>
+                const SizedBox(height: 8),
+                itemBuilder: (context, index) =>
+                    _buildLeaderboardItem(_leaderboardUsers[index], index),
               ),
             ),
           ),
@@ -328,54 +264,105 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildLeaderboardItem(_LeaderboardUser user, int index) {
-    return ListTile(
-      contentPadding:
-      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      leading: CircleAvatar(
-        radius: 26,
-        backgroundColor: Colors.grey[200],
-        child: user.profileImagePath != null
-            ? ClipOval(
-            child: Image.file(File(user.profileImagePath!),
-                fit: BoxFit.cover, width: 52, height: 52))
-            : ClipOval(
-          child: Image.network(
-            'https://ui-avatars.com/api/?name=${user.name.replaceAll(' ', '+')}&background=1e3c72&color=fff',
-            fit: BoxFit.cover,
-            width: 52,
-            height: 52,
+    return InkWell(
+      onTap: () {
+        // Navigate to user detail screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UserDetailScreen(username: user.name),
           ),
-        ),
-      ),
-      title: Text(user.name,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-            color: user.isCurrentUser ? Colors.blue : Colors.black,
-          )),
-      trailing: Container(
-        padding:
-        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: accentColor,
-          borderRadius: BorderRadius.circular(20),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: Text('${user.score} pts',
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: Colors.grey[200],
+              child: user.profileImagePath != null
+                  ? ClipOval(
+                child: Image.network(
+                  user.profileImagePath!,
+                  fit: BoxFit.cover,
+                  width: 48,
+                  height: 48,
+                ),
+              )
+                  : ClipOval(
+                child: Image.network(
+                  'https://ui-avatars.com/api/?name=${user.name.replaceAll(' ', '+')}&background=1e3c72&color=fff',
+                  fit: BoxFit.cover,
+                  width: 48,
+                  height: 48,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      color: user.isCurrentUser ? Colors.blue : Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  user.score > 0
+                      ? Text(
+                    'Completed ${user.score ~/ 20} challenges',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  )
+                      : Text(
+                    'No challenges yet',
+                    style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.tealAccent,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${user.score} pts',
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-      subtitle: Text('Completed ${user.score ~/ 20} challenges',
-          style: TextStyle(color: Colors.grey[600], fontSize: 13)),
     );
   }
 
+
   void _handleMenuSelection(BuildContext context, String value) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     switch (value) {
       case 'Profile':
-        Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (context) => const ProfileScreen()))
+        Navigator.push(context,
+            MaterialPageRoute(builder: (context) => const ProfileScreen()))
             .then((_) => _refreshData());
         break;
       case 'Settings':
@@ -391,11 +378,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _logout(BuildContext context) async {
-    final authProvider =
-    Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     try {
       await authProvider.logout();
       if (!context.mounted) return;
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const LoginPage()),
@@ -405,8 +392,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('Logout failed: ${e.toString()}'),
-            backgroundColor: Colors.red),
+          content: Text('Logout failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -415,69 +403,25 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-          borderRadius:
-          BorderRadius.vertical(top: Radius.circular(20))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Notifications',
-                style:
-                TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
             if (_achievements.isEmpty)
               const Text('No new notifications',
                   style: TextStyle(color: Colors.grey))
             else
-              ..._achievements
-                  .map((achievement) => ListTile(
-                leading: const Icon(Icons.emoji_events,
-                    color: Colors.amber),
+              ..._achievements.map((achievement) => ListTile(
+                leading: const Icon(Icons.emoji_events, color: Colors.amber),
                 title: Text('New achievement: $achievement'),
-                subtitle:
-                const Text('Completed a challenge'),
-              ))
-                  .toList(),
+                subtitle: const Text('Completed a challenge'),
+              )),
             const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showQuickStartMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius:
-          BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Quick Start',
-                style:
-                TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            ListTile(
-              leading:
-              const Icon(Icons.play_arrow, color: Colors.teal),
-              title: const Text('Continue Last Challenge'),
-              onTap: () => Navigator.pop(context),
-            ),
-            ListTile(
-              leading: const Icon(Icons.account_tree_outlined,
-                  color: Colors.blue),
-              title: const Text('Select Language'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushNamed(context, '/select_language')
-                    .then((_) => _refreshData());
-              },
-            ),
-            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -498,9 +442,7 @@ class _UserWelcomeCard extends StatelessWidget {
 
     return InkWell(
       onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (context) => const ProfileScreen())),
+          context, MaterialPageRoute(builder: (context) => const ProfileScreen())),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 20),
         padding: const EdgeInsets.all(16),
@@ -515,28 +457,19 @@ class _UserWelcomeCard extends StatelessWidget {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.grey.withOpacity(0.3),
-              ),
+                  shape: BoxShape.circle, color: Colors.grey.withOpacity(0.3)),
               child: authProvider.profileImagePath != null
                   ? ClipOval(
-                child: Image.file(
-                  File(authProvider.profileImagePath!),
-                  fit: BoxFit.cover,
-                  width: 60,
-                  height: 60,
-                ),
-              )
-                  : const Icon(Icons.person,
-                  size: 30, color: Colors.white70),
+                  child: Image.file(File(authProvider.profileImagePath!),
+                      fit: BoxFit.cover, width: 60, height: 60))
+                  : const Icon(Icons.person, size: 30, color: Colors.white70),
             ),
             const SizedBox(width: 16),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Welcome back,',
-                    style: TextStyle(
-                        color: Colors.white70, fontSize: 14)),
+                    style: TextStyle(color: Colors.white70, fontSize: 14)),
                 const SizedBox(height: 4),
                 Text(name,
                     style: const TextStyle(
@@ -544,70 +477,20 @@ class _UserWelcomeCard extends StatelessWidget {
                         fontSize: 20,
                         fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text('$score points',
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 14)),
+                score > 0
+                    ? Text('$score points',
+                    style:
+                    const TextStyle(color: Colors.white70, fontSize: 14))
+                    : const Text('No points yet',
+                    style:
+                    TextStyle(color: Colors.white70, fontSize: 14)),
               ],
             ),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.stars_rounded, color: Colors.amber),
-              onPressed: () => _showAchievements(context),
-            ),
           ],
         ),
       ),
     );
   }
-
-  void _showAchievements(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Your Achievements'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (achievements.isEmpty)
-              const Column(
-                children: [
-                  Icon(Icons.emoji_events, size: 60, color: Colors.grey),
-                  SizedBox(height: 20),
-                  Text('Complete challenges to unlock achievements'),
-                ],
-              )
-            else
-              Column(
-                children: [
-                  const Icon(Icons.emoji_events,
-                      size: 60, color: Colors.amber),
-                  const SizedBox(height: 10),
-                  ...achievements.map(
-                        (achievement) => ListTile(
-                      leading: const Icon(Icons.star, color: Colors.amber),
-                      title: Text(achievement),
-                    ),
-                  ),
-                ],
-              ),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              value: achievements.length / 6,
-              backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          )
-        ],
-      ),
-    );
-  }
-
 }
 
 class _LeaderboardUser {
@@ -622,3 +505,95 @@ class _LeaderboardUser {
         this.profileImagePath,
         this.isCurrentUser = false});
 }
+class _CodeSnapLogo extends StatefulWidget {
+  const _CodeSnapLogo();
+
+  @override
+  State<_CodeSnapLogo> createState() => _CodeSnapLogoState();
+}
+
+class _CodeSnapLogoState extends State<_CodeSnapLogo>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      duration: const Duration(seconds: 2), // speed ng animation
+      vsync: this,
+    )..repeat(reverse: true); // back and forth
+
+    _animation = Tween<double>(begin: -20, end: 20).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(_animation.value, 0), // move horizontally
+          child: child,
+        );
+      },
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Code',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal[800],
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                TextSpan(
+                  text: 'S',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[800],
+                    fontFamily: 'monospace',
+                    shadows: const [
+                      Shadow(
+                          offset: Offset(1, 2),
+                          blurRadius: 3,
+                          color: Colors.black26)
+                    ],
+                  ),
+                ),
+                TextSpan(
+                  text: 'nap',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal[800],
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
