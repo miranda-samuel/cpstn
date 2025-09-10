@@ -116,9 +116,7 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const _CodeSnapLogo(),
-                    const SizedBox(height: 30),
-
+                    const _CodeSnapLogo(), // 👉 image logo
                     const Text(
                       'Welcome back!',
                       style: TextStyle(
@@ -143,8 +141,8 @@ class _LoginPageState extends State<LoginPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding:
-                        const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 15, horizontal: 20),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -170,11 +168,13 @@ class _LoginPageState extends State<LoginPage> {
                         prefixIcon: const Icon(Icons.lock),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                            _obscurePassword
+                                ? Icons.visibility
+                                : Icons.visibility_off,
                             color: Colors.grey,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscurePassword = !_obscurePassword),
+                          onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword),
                         ),
                         filled: true,
                         fillColor: Colors.white,
@@ -182,8 +182,8 @@ class _LoginPageState extends State<LoginPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding:
-                        const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 15, horizontal: 20),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -270,41 +270,11 @@ class _CodeSnapLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RichText(
-      text: TextSpan(
-        children: [
-          TextSpan(
-            text: 'Code',
-            style: TextStyle(
-              fontSize: 40,
-              fontWeight: FontWeight.bold,
-              color: Colors.teal[800],
-              fontFamily: 'monospace',
-            ),
-          ),
-          TextSpan(
-            text: 'S',
-            style: TextStyle(
-              fontSize: 42,
-              fontWeight: FontWeight.bold,
-              color: Colors.green[800],
-              fontFamily: 'monospace',
-              shadows: const [
-                Shadow(offset: Offset(1, 2), blurRadius: 3, color: Colors.black26)
-              ],
-            ),
-          ),
-          TextSpan(
-            text: 'nap',
-            style: TextStyle(
-              fontSize: 40,
-              fontWeight: FontWeight.bold,
-              color: Colors.teal[800],
-              fontFamily: 'monospace',
-            ),
-          ),
-        ],
-      ),
+    return Image.asset(
+      'assets/images/codesnap_logo.png',
+      width: 300,
+      height: 300,
+      fit: BoxFit.contain,
     );
   }
 }

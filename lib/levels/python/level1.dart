@@ -1,6 +1,5 @@
 import 'package:cpstn/levels/python/level2.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -12,7 +11,8 @@ class PythonLevel1 extends StatefulWidget {
   State<PythonLevel1> createState() => _PythonLevel1State();
 }
 
-class _PythonLevel1State extends State<PythonLevel1> {
+class _PythonLevel1State extends State<PythonLevel1>
+    with SingleTickerProviderStateMixin {
   List<String> allBlocks = [];
   List<String> droppedBlocks = [];
   bool gameStarted = false;
@@ -24,11 +24,23 @@ class _PythonLevel1State extends State<PythonLevel1> {
   int remainingSeconds = 60;
   Timer? countdownTimer;
 
+  late AnimationController _controller;
+  late Animation<Color?> _colorAnimation;
+
   @override
   void initState() {
     super.initState();
     resetBlocks();
-    loadScoreFromPrefs();
+
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(seconds: 3));
+    _colorAnimation = _controller.drive(
+      ColorTween(begin: Colors.greenAccent, end: Colors.blueAccent),
+    );
+    _controller.repeat(reverse: true);
+
+    // Optional: Load level completion and score from backend here
+    // fetchScoreFromBackend();
   }
 
   void resetBlocks() {
@@ -60,82 +72,51 @@ class _PythonLevel1State extends State<PythonLevel1> {
         remainingSeconds--;
         if (remainingSeconds == 30 && score > 0) {
           score--;
-          saveScoreToPrefs(score);
           sendScoreToBackend(score);
         }
         if (remainingSeconds <= 0) {
           score = 0;
           timer.cancel();
-          saveScoreToPrefs(score);
           sendScoreToBackend(score);
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text("⏰ Time's Up!"),
-              content: Text("Score: $score"),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    resetGame();
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Retry"),
-                )
-              ],
-            ),
-          );
+          showFancyDialog(context, "⏰ Time's Up!", "Score: $score",
+              isGameOver: true);
         }
       });
     });
   }
 
   void resetGame() {
-    if (level1Completed) return;
     setState(() {
       score = 3;
       remainingSeconds = 60;
       gameStarted = false;
       isAnsweredCorrectly = false;
+      level1Completed = false;
       droppedBlocks.clear();
       countdownTimer?.cancel();
       resetBlocks();
     });
   }
 
-  Future<void> saveScoreToPrefs(int score) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('python_level1_score', score);
-
-    if (score > 0) {
-      await prefs.setBool('python_level1_completed', true);
-    }
-  }
-
-  Future<void> loadScoreFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedScore = prefs.getInt('python_level1_score');
-    final completed = prefs.getBool('python_level1_completed') ?? false;
-    setState(() {
-      if (savedScore != null) score = savedScore;
-      level1Completed = completed;
-    });
-  }
-
-  // 🔹 New function: send score to backend
   Future<void> sendScoreToBackend(int score) async {
-    final username = await getUsername(); // get saved username from SharedPreferences
+    final username = await getUsername();
     if (username == null) return;
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.100.92/cpstn_backend/api/'
-            'update_score.php'),
+        Uri.parse(
+            'http://192.168.100.92/cpstn_backend/api/update_score.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': username, 'score': score}),
       );
 
       final data = jsonDecode(response.body);
-      if (!(data['status'] ?? false)) {
+      if (data['status'] ?? false) {
+        setState(() {
+          level1Completed = true;
+          this.score = score;
+        });
+      } else {
         print('Failed to update backend score: ${data['message']}');
       }
     } catch (e) {
@@ -144,8 +125,9 @@ class _PythonLevel1State extends State<PythonLevel1> {
   }
 
   Future<String?> getUsername() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('username'); // save username during login
+    // Replace this with your backend or provider logic if needed
+    // Currently returning a dummy username
+    return 'demoUser';
   }
 
   void checkAnswer() async {
@@ -155,22 +137,19 @@ class _PythonLevel1State extends State<PythonLevel1> {
     if (answer == 'print ("Hello World") ;') {
       countdownTimer?.cancel();
       isAnsweredCorrectly = true;
-      await saveScoreToPrefs(score);
       await sendScoreToBackend(score);
 
       setState(() {
         level1Completed = true;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Correct! Level Completed")),
-      );
+      showFancyDialog(
+          context, "✅ Correct! Level Completed", "Output:\nHello World");
     } else {
       if (score > 1) {
         setState(() {
           score--;
         });
-        saveScoreToPrefs(score);
         sendScoreToBackend(score);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("❌ Incorrect. -1 point")),
@@ -180,26 +159,98 @@ class _PythonLevel1State extends State<PythonLevel1> {
           score = 0;
         });
         countdownTimer?.cancel();
-        saveScoreToPrefs(score);
         sendScoreToBackend(score);
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("💀 Game Over"),
-            content: const Text("You lost all your points."),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  resetGame();
-                },
-                child: const Text("Retry"),
-              )
-            ],
-          ),
-        );
+        showFancyDialog(
+            context, "💀 Game Over", "You lost all your points.",
+            isGameOver: true);
       }
     }
+  }
+
+  void showFancyDialog(BuildContext context, String title, String message,
+      {bool isGameOver = false}) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "Dialog",
+      pageBuilder: (context, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return Transform.scale(
+          scale: anim1.value,
+          child: Opacity(
+            opacity: anim1.value,
+            child: Center(
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.8,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isGameOver
+                        ? [Colors.red, Colors.orange]
+                        : [Colors.green, Colors.teal, Colors.blue],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black45,
+                      blurRadius: 15,
+                      offset: Offset(0, 5),
+                    )
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 15),
+                      Text(
+                        message,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.white70,
+                          fontFamily: 'monospace',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.yellowAccent,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 30, vertical: 12),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          if (isGameOver) resetGame();
+                        },
+                        child: const Text("OK"),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 400),
+    );
   }
 
   String formatTime(int seconds) {
@@ -215,6 +266,7 @@ class _PythonLevel1State extends State<PythonLevel1> {
   @override
   void dispose() {
     countdownTimer?.cancel();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -223,20 +275,31 @@ class _PythonLevel1State extends State<PythonLevel1> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("🐍 Python - Level 1"),
-        backgroundColor: Colors.green, // 🔹 black AppBar
+        backgroundColor: Colors.green,
         actions: gameStarted
             ? [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                const Icon(Icons.timer),
+                const Icon(Icons.timer, color: Colors.white),
                 const SizedBox(width: 4),
-                Text(formatTime(remainingSeconds)),
+                Text(
+                  formatTime(remainingSeconds),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
                 const SizedBox(width: 16),
                 const Icon(Icons.star, color: Colors.yellowAccent),
-                Text(" $score",
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  " $score",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.yellowAccent,
+                  ),
+                ),
               ],
             ),
           ),
@@ -244,7 +307,7 @@ class _PythonLevel1State extends State<PythonLevel1> {
             : [],
       ),
       body: Container(
-        color: Colors.black, // 🔹 black background
+        color: Colors.black,
         child: gameStarted ? buildGameUI() : buildStartScreen(),
       ),
     );
@@ -255,21 +318,38 @@ class _PythonLevel1State extends State<PythonLevel1> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          ElevatedButton.icon(
-            onPressed: level1Completed ? null : startGame,
-            icon: const Icon(Icons.play_arrow),
-            label: Text(level1Completed ? "Completed" : "Start Game"),
-            style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                backgroundColor: Colors.tealAccent, // visible on black
-                foregroundColor: Colors.black),
+          AnimatedContainer(
+            duration: const Duration(seconds: 2),
+            curve: Curves.easeInOut,
+            child: ElevatedButton.icon(
+              onPressed: startGame,
+              icon: const Icon(Icons.play_arrow),
+              label: Text(level1Completed ? "Retry Level" : "Start Game"),
+              style: ElevatedButton.styleFrom(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  backgroundColor: Colors.tealAccent,
+                  foregroundColor: Colors.black),
+            ),
           ),
           if (level1Completed)
-            const Padding(
-              padding: EdgeInsets.only(top: 10),
-              child: Text(
-                "✅ Level 1 already completed!",
-                style: TextStyle(color: Colors.greenAccent),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Column(
+                children: [
+                  const Text(
+                    "✅ Level 1 already completed!",
+                    style: TextStyle(color: Colors.greenAccent),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "⭐ Score: $score / 3",
+                    style: const TextStyle(
+                        color: Colors.yellowAccent,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
             ),
         ],
@@ -287,7 +367,10 @@ class _PythonLevel1State extends State<PythonLevel1> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('📖 Short Story',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
               TextButton.icon(
                 onPressed: () {
                   setState(() {
@@ -295,7 +378,8 @@ class _PythonLevel1State extends State<PythonLevel1> {
                   });
                 },
                 icon: const Icon(Icons.translate, color: Colors.white),
-                label: Text(isTagalog ? 'English' : 'Tagalog', style: const TextStyle(color: Colors.white)),
+                label: Text(isTagalog ? 'English' : 'Tagalog',
+                    style: const TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -308,15 +392,17 @@ class _PythonLevel1State extends State<PythonLevel1> {
             style: const TextStyle(fontSize: 16, color: Colors.white),
           ),
           const SizedBox(height: 20),
-          const Text('🧩 Arrange the puzzle blocks to form: print("Hello World");',
-              style: TextStyle(fontSize: 18, color: Colors.white), textAlign: TextAlign.center),
+          const Text(
+              '🧩 Arrange the puzzle blocks to form: print("Hello World");',
+              style: TextStyle(fontSize: 18, color: Colors.white),
+              textAlign: TextAlign.center),
           const SizedBox(height: 20),
           Container(
             height: 140,
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[900], // dark container
+              color: Colors.grey[900],
               border: Border.all(color: Colors.blueGrey, width: 2.5),
               borderRadius: BorderRadius.circular(20),
             ),
@@ -334,16 +420,20 @@ class _PythonLevel1State extends State<PythonLevel1> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: droppedBlocks.map((block) {
-                      return GestureDetector(
-                        onTap: () {
-                          if (!isAnsweredCorrectly) {
-                            setState(() {
-                              droppedBlocks.remove(block);
-                              allBlocks.add(block);
-                            });
-                          }
-                        },
-                        child: puzzleBlock(block, Colors.greenAccent),
+                      return AnimatedScale(
+                        duration: const Duration(milliseconds: 300),
+                        scale: 1.0,
+                        child: GestureDetector(
+                          onTap: () {
+                            if (!isAnsweredCorrectly) {
+                              setState(() {
+                                droppedBlocks.remove(block);
+                                allBlocks.add(block);
+                              });
+                            }
+                          },
+                          child: puzzleBlock(block, Colors.greenAccent),
+                        ),
                       );
                     }).toList(),
                   ),
@@ -351,17 +441,19 @@ class _PythonLevel1State extends State<PythonLevel1> {
               },
             ),
           ),
-          // 🔹 Preview section
           const SizedBox(height: 20),
           const Text('📝 Preview:',
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-          Container(
+              style:
+              TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 600),
             padding: const EdgeInsets.all(10),
             width: double.infinity,
             color: Colors.grey[800],
             child: Text(
               getPreviewCode(),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 18, color: Colors.white),
+              style: const TextStyle(
+                  fontFamily: 'monospace', fontSize: 18, color: Colors.white),
             ),
           ),
           const SizedBox(height: 20),
@@ -374,7 +466,10 @@ class _PythonLevel1State extends State<PythonLevel1> {
                   ? puzzleBlock(block, Colors.grey)
                   : Draggable<String>(
                 data: block,
-                feedback: puzzleBlock(block, Colors.blueAccent),
+                feedback: AnimatedScale(
+                    scale: 1.1,
+                    duration: const Duration(milliseconds: 200),
+                    child: puzzleBlock(block, Colors.blueAccent)),
                 childWhenDragging: Opacity(
                     opacity: 0.4, child: puzzleBlock(block, Colors.blueAccent)),
                 child: puzzleBlock(block, Colors.blueAccent),
@@ -387,10 +482,11 @@ class _PythonLevel1State extends State<PythonLevel1> {
             icon: const Icon(Icons.play_arrow),
             label: const Text("Run Code"),
           ),
-          if (!level1Completed)
-            TextButton(
+          if (level1Completed)
+            TextButton.icon(
               onPressed: resetGame,
-              child: const Text("🔁 Retry"),
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              label: const Text("🔁 Retry Level"),
               style: TextButton.styleFrom(foregroundColor: Colors.white),
             ),
           if (level1Completed)
@@ -407,21 +503,25 @@ class _PythonLevel1State extends State<PythonLevel1> {
               label: const Text("Next Level"),
               style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 12)),
             ),
         ],
       ),
     );
   }
 
-
   Widget puzzleBlock(String text, Color color) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
       margin: const EdgeInsets.symmetric(horizontal: 6),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
-        color: color,
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.8), color],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
@@ -437,10 +537,12 @@ class _PythonLevel1State extends State<PythonLevel1> {
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.bold,
           fontFamily: 'monospace',
           fontSize: 16,
+          color: Colors.primaries[
+          text.hashCode % Colors.primaries.length], // colorful text
         ),
       ),
     );

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
-import 'dart:math';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class PythonLevel3 extends StatefulWidget {
   const PythonLevel3({super.key});
@@ -11,127 +12,208 @@ class PythonLevel3 extends StatefulWidget {
 }
 
 class _PythonLevel3State extends State<PythonLevel3> {
-  final List<String> correctSequence = ['def', 'greet', '(', ')', ':', 'print', '(', '"Hi"', ')'];
-
-  late List<Map<String, dynamic>> initialBlocks;
-  late List<Map<String, dynamic>> codeBlocks;
-  List<Map<String, dynamic>?> droppedBlocks = List.filled(9, null);
-
-  bool isTagalog = false;
+  List<String> allBlocks = [];
+  List<String> droppedBlocks = [];
   bool gameStarted = false;
+  bool isTagalog = false;
+  bool isAnsweredCorrectly = false;
+  bool level3Completed = false;
+
   int score = 3;
+  int remainingSeconds = 60;
   Timer? countdownTimer;
-  int remainingSeconds = 120;
 
   @override
   void initState() {
     super.initState();
-    initialBlocks = List.generate(correctSequence.length, (i) {
-      return {'text': correctSequence[i], 'id': i};
-    });
-    codeBlocks = List.from(initialBlocks)..shuffle(Random());
+    resetBlocks();
     loadScoreFromPrefs();
   }
 
-  Future<void> saveScoreToPrefs(int score) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('python_level3_score', score);
-  }
-
-  Future<void> loadScoreFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedScore = prefs.getInt('python_level3_score');
-    if (savedScore != null) {
-      setState(() {
-        score = savedScore;
-      });
-    }
+  void resetBlocks() {
+    // 🔹 Puzzle blocks for Level 3
+    allBlocks = [
+      'if',
+      'x',
+      '>',
+      '10:',
+      'print',
+      '("x is greater")',
+      'else:',
+      'print',
+      '("x is small")',
+    ]..shuffle();
   }
 
   void startGame() {
     setState(() {
       gameStarted = true;
+      score = 3;
+      remainingSeconds = 60;
+      droppedBlocks.clear();
+      isAnsweredCorrectly = false;
+      resetBlocks();
     });
     startTimer();
   }
 
   void startTimer() {
-    countdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         remainingSeconds--;
-        if (remainingSeconds == 60 && score > 0) {
+        if (remainingSeconds == 30 && score > 0) {
           score--;
           saveScoreToPrefs(score);
+          sendScoreToBackend(score);
         }
         if (remainingSeconds <= 0) {
+          score = 0;
           timer.cancel();
-          showResultDialog("⏱ Time's Up", "Your score: $score");
-        }
-        if (score <= 0) {
-          timer.cancel();
-          showResultDialog("💀 Game Over", "You lost all your points.");
+          saveScoreToPrefs(score);
+          sendScoreToBackend(score);
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text("⏰ Time's Up!"),
+              content: Text("Score: $score"),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    resetGame();
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Retry"),
+                )
+              ],
+            ),
+          );
         }
       });
     });
   }
 
-  void checkAnswer() {
-    final answer = droppedBlocks.map((e) => e?['text'] ?? '').join(' ');
-    if (answer == correctSequence.join(' ')) {
-      saveScoreToPrefs(score);
+  void resetGame() {
+    if (level3Completed) return;
+    setState(() {
+      score = 3;
+      remainingSeconds = 60;
+      gameStarted = false;
+      isAnsweredCorrectly = false;
+      droppedBlocks.clear();
       countdownTimer?.cancel();
-      showResultDialog("🎉 Great Job!", "You completed Level 3!\nScore: $score", nextLevel: true);
-    } else {
-      if (score > 0) {
-        setState(() {
-          score--;
-        });
-        saveScoreToPrefs(score);
-      }
-      if (score <= 0) {
-        countdownTimer?.cancel();
-        showResultDialog("💀 Game Over", "You lost all your points.");
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Incorrect. -1 point")),
-        );
-      }
+      resetBlocks();
+    });
+  }
+
+  Future<void> saveScoreToPrefs(int score) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('python_level3_score', score);
+
+    if (score > 0) {
+      await prefs.setBool('python_level3_completed', true);
     }
   }
 
-  void showResultDialog(String title, String message, {bool nextLevel = false}) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          if (nextLevel)
+  Future<void> loadScoreFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedScore = prefs.getInt('python_level3_score');
+    final completed = prefs.getBool('python_level3_completed') ?? false;
+    setState(() {
+      if (savedScore != null) score = savedScore;
+      level3Completed = completed;
+    });
+  }
+
+  Future<void> sendScoreToBackend(int score) async {
+    final username = await getUsername();
+    if (username == null) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://192.168.100.92/cpstn_backend/api/update_score.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'score': score}),
+      );
+
+      final data = jsonDecode(response.body);
+      if (!(data['status'] ?? false)) {
+        print('Failed to update backend score: ${data['message']}');
+      }
+    } catch (e) {
+      print('Error sending score to backend: $e');
+    }
+  }
+
+  Future<String?> getUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('username');
+  }
+
+  void checkAnswer() async {
+    if (isAnsweredCorrectly || droppedBlocks.isEmpty) return;
+
+    String answer = droppedBlocks.join(' ');
+    // 🔹 Correct answer for Level 3
+    if (answer == 'if x > 10: print ("x is greater") else: print ("x is small")') {
+      countdownTimer?.cancel();
+      isAnsweredCorrectly = true;
+      await saveScoreToPrefs(score);
+      await sendScoreToBackend(score);
+
+      setState(() {
+        level3Completed = true;
+      });
+
+      // ✅ Show output in a dialog instead of SnackBar
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("✅ Correct! Level Completed"),
+          content: const Text(
+            "Output:\nIf x = 11 -> x is greater\nIf x = 5 -> x is small",
+            style: TextStyle(fontFamily: 'monospace'),
+          ),
+          actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, '/python_level4');
               },
-              child: Text("Next Level"),
+              child: const Text("OK"),
             ),
-          TextButton(
-            onPressed: () {
-              saveScoreToPrefs(3);
-              Navigator.pop(context);
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => PythonLevel3()));
-            },
-            child: Text("Retry"),
-          )
-        ],
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    countdownTimer?.cancel();
-    super.dispose();
+          ],
+        ),
+      );
+    } else {
+      if (score > 1) {
+        setState(() { score--; });
+        saveScoreToPrefs(score);
+        sendScoreToBackend(score);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("❌ Incorrect. -1 point")),
+        );
+      } else {
+        setState(() { score = 0; });
+        countdownTimer?.cancel();
+        saveScoreToPrefs(score);
+        sendScoreToBackend(score);
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text("💀 Game Over"),
+            content: const Text("You lost all your points."),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  resetGame();
+                },
+                child: const Text("Retry"),
+              )
+            ],
+          ),
+        );
+      }
+    }
   }
 
   String formatTime(int seconds) {
@@ -140,41 +222,72 @@ class _PythonLevel3State extends State<PythonLevel3> {
     return "$m:$s";
   }
 
+  String getPreviewCode() {
+    return droppedBlocks.join(' ');
+  }
+
+  @override
+  void dispose() {
+    countdownTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("🐍 Python - Level 3"),
-        backgroundColor: Colors.deepPurple,
+        title: const Text("🐍 Python - Level 3"),
+        backgroundColor: Colors.purple,
         actions: gameStarted
             ? [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                Icon(Icons.timer),
-                SizedBox(width: 4),
+                const Icon(Icons.timer),
+                const SizedBox(width: 4),
                 Text(formatTime(remainingSeconds)),
-                SizedBox(width: 16),
-                Icon(Icons.star, color: Colors.yellowAccent),
-                Text(" $score", style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 16),
+                const Icon(Icons.star, color: Colors.yellowAccent),
+                Text(" $score",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
         ]
             : [],
       ),
-      body: gameStarted ? buildGameUI() : buildStartScreen(),
+      body: Container(
+        color: Colors.black,
+        child: gameStarted ? buildGameUI() : buildStartScreen(),
+      ),
     );
   }
 
   Widget buildStartScreen() {
     return Center(
-      child: ElevatedButton.icon(
-        onPressed: startGame,
-        icon: Icon(Icons.play_arrow),
-        label: Text("Start Game"),
-        style: ElevatedButton.styleFrom(padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ElevatedButton.icon(
+            onPressed: level3Completed ? null : startGame,
+            icon: const Icon(Icons.play_arrow),
+            label: Text(level3Completed ? "Completed" : "Start Game"),
+            style: ElevatedButton.styleFrom(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                backgroundColor: Colors.tealAccent,
+                foregroundColor: Colors.black),
+          ),
+          if (level3Completed)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text(
+                "✅ Level 3 already completed!",
+                style: TextStyle(color: Colors.greenAccent),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -188,191 +301,164 @@ class _PythonLevel3State extends State<PythonLevel3> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('📚 Short Story', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('📖 Short Story',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
               TextButton.icon(
                 onPressed: () {
                   setState(() {
                     isTagalog = !isTagalog;
                   });
                 },
-                icon: Icon(Icons.translate),
-                label: Text(isTagalog ? 'English' : 'Tagalog'),
+                icon: const Icon(Icons.translate, color: Colors.white),
+                label: Text(isTagalog ? 'English' : 'Tagalog',
+                    style: const TextStyle(color: Colors.white)),
               ),
             ],
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 10),
           Text(
             isTagalog
-                ? 'Si Zeke ay gustong matutong gumawa ng simpleng function na bumabati.'
-                : 'Zeke wants to learn how to write a simple greeting function.',
-            style: TextStyle(fontSize: 16),
+                ? 'Ngayon gusto ni Zeke gumawa ng condition sa Python! Kung ang x ay mas malaki sa 10, i-print ang "x is greater" kung hindi "x is small". Ayusin ang mga blocks para mabuo ang code!'
+                : 'Now Zeke wants to use a condition in Python! If x is greater than 10, print "x is greater" else "x is small". Arrange the blocks below to form the code!',
             textAlign: TextAlign.justify,
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              isTagalog
-                  ? '🧩 Ipagdugtong ang mga code block para makagawa ng greet function'
-                  : '🧩 Match the blocks to build a greet function',
-              style: TextStyle(fontSize: 18),
-              textAlign: TextAlign.center,
-            ),
+            style: const TextStyle(fontSize: 16, color: Colors.white),
           ),
           const SizedBox(height: 20),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(correctSequence.length, (index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: DragTarget<Map<String, dynamic>>(
-                    onAccept: (data) {
-                      setState(() {
-                        final existing = droppedBlocks[index];
-                        if (existing != null) {
-                          codeBlocks.add(existing);
-                        }
-                        droppedBlocks[index] = data;
-                        codeBlocks.remove(data);
-                      });
-                    },
-                    builder: (context, candidateData, rejectedData) {
-                      final block = droppedBlocks[index];
-                      final text = block?['text'];
-                      final shapeId = block?['id'] ?? index;
-                      return GestureDetector(
-                        onTap: () {
-                          if (block != null) {
-                            setState(() {
-                              codeBlocks.add(block);
-                              droppedBlocks[index] = null;
-                            });
-                          }
-                        },
-                        child: ClipPath(
-                          key: ValueKey('drop-$index-${block?['id'] ?? 'empty'}'),
-                          clipper: PuzzleClipper(shapeId),
-                          child: Container(
-                            width: 60,
-                            height: 60,
-                            color: text != null ? Colors.greenAccent : Colors.grey[300],
-                            alignment: Alignment.center,
-                            child: Text(
-                              text ?? '?',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'monospace',
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              }),
-            ),
-          ),
+          const Text(
+              '🧩 Arrange the puzzle blocks to form: if x > 10: print("x is greater") else: print("x is small")',
+              style: TextStyle(fontSize: 18, color: Colors.white),
+              textAlign: TextAlign.center),
           const SizedBox(height: 20),
-          Text('📄 Preview:'),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: Container(
+              constraints: const BoxConstraints(
+                minHeight: 140,
+                maxHeight: 400, // maximum height
+              ),
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[900],
+                border: Border.all(color: Colors.blueGrey, width: 2.5),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: DragTarget<String>(
+                onAccept: (data) {
+                  if (!isAnsweredCorrectly) {
+                    setState(() {
+                      droppedBlocks.add(data);
+                      allBlocks.remove(data);
+                    });
+                  }
+                },
+                builder: (context, candidateData, rejectedData) {
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: droppedBlocks.map((block) {
+                        return GestureDetector(
+                          onTap: () {
+                            if (!isAnsweredCorrectly) {
+                              setState(() {
+                                droppedBlocks.remove(block);
+                                allBlocks.add(block);
+                              });
+                            }
+                          },
+                          child: puzzleBlock(block, Colors.greenAccent),
+                        );
+                      }).toList(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ), // ✅ Dito boss, mahalaga ang comma sa dulo
+
+          const SizedBox(height: 20),
+          const Text('📝 Preview:',
+              style:
+              TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
           Container(
+            padding: const EdgeInsets.all(10),
             width: double.infinity,
-            constraints: BoxConstraints(minHeight: 60),
-            padding: EdgeInsets.all(10),
-            color: Colors.grey[300],
+            color: Colors.grey[800],
             child: Text(
-              droppedBlocks.where((e) => e != null).map((e) => e!['text']).join(' ') +
-                  (droppedBlocks.every((e) => e != null) ? ' ;' : ''),
-              style: TextStyle(fontSize: 18, fontFamily: 'monospace'),
+              getPreviewCode(),
+              style: const TextStyle(
+                  fontFamily: 'monospace', fontSize: 18, color: Colors.white),
             ),
           ),
           const SizedBox(height: 20),
           Wrap(
-            alignment: WrapAlignment.center,
             spacing: 12,
             runSpacing: 12,
-            children: codeBlocks.map((block) {
-              return Draggable<Map<String, dynamic>>(
+            alignment: WrapAlignment.center,
+            children: allBlocks.map((block) {
+              return isAnsweredCorrectly
+                  ? puzzleBlock(block, Colors.grey)
+                  : Draggable<String>(
                 data: block,
-                feedback: puzzleBlock(block['text'], Colors.deepPurpleAccent, block['id'],
-                    key: ValueKey('drag-feedback-${block['id']}')),
+                feedback: puzzleBlock(block, Colors.blueAccent),
                 childWhenDragging: Opacity(
-                  opacity: 0.4,
-                  child: puzzleBlock(block['text'], Colors.deepPurpleAccent, block['id'],
-                      key: ValueKey('drag-dimmed-${block['id']}')),
-                ),
-                child: puzzleBlock(block['text'], Colors.deepPurpleAccent, block['id'],
-                    key: ValueKey('drag-${block['id']}')),
+                    opacity: 0.4,
+                    child: puzzleBlock(block, Colors.blueAccent)),
+                child: puzzleBlock(block, Colors.blueAccent),
               );
             }).toList(),
           ),
           const SizedBox(height: 30),
           ElevatedButton.icon(
-            onPressed: checkAnswer,
-            icon: Icon(Icons.play_arrow),
-            label: Text("Run Code"),
-          )
+            onPressed: isAnsweredCorrectly ? null : checkAnswer,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text("Run Code"),
+          ),
+          if (!level3Completed)
+            TextButton(
+              onPressed: resetGame,
+              child: const Text("🔁 Retry"),
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+            ),
         ],
       ),
     );
   }
 
-  Widget puzzleBlock(String text, Color color, int shapeIndex, {Key? key}) {
-    return ClipPath(
-      key: key,
-      clipper: PuzzleClipper(shapeIndex),
-      child: Container(
-        width: 60,
-        height: 60,
+  Widget puzzleBlock(String text, Color color) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
         color: color,
-        alignment: Alignment.center,
-        child: Text(
-          text,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontFamily: 'monospace',
-            fontSize: 16,
-            color: Colors.white,
-          ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+        border: Border.all(color: Colors.black45, width: 1.5),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 4,
+            offset: Offset(2, 2),
+          )
+        ],
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontFamily: 'monospace',
+          fontSize: 16,
         ),
       ),
     );
   }
-}
-
-class PuzzleClipper extends CustomClipper<Path> {
-  final int type;
-  PuzzleClipper(this.type);
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    switch (type % 4) {
-      case 0:
-        path.addRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), Radius.circular(12)));
-        break;
-      case 1:
-        path.moveTo(0, 0);
-        path.lineTo(size.width, 0);
-        path.lineTo(size.width, size.height);
-        path.lineTo(0, size.height);
-        path.close();
-        break;
-      case 2:
-        path.moveTo(size.width / 2, 0);
-        path.lineTo(size.width, size.height);
-        path.lineTo(0, size.height);
-        path.close();
-        break;
-      default:
-        path.addOval(Rect.fromCircle(center: Offset(size.width / 2, size.height / 2), radius: size.width / 2));
-        break;
-    }
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

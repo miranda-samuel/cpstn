@@ -1,9 +1,9 @@
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// 👉 import natin lahat ng levels
-import 'package:cpstn/levels/python/level1.dart';
-import 'package:cpstn/levels/python/level2.dart';
+
+
 
 import '../levels/cpp/level1.dart';
 import '../levels/cpp/level2.dart';
@@ -11,6 +11,20 @@ import '../levels/java/level1.dart';
 import '../levels/java/level2.dart';
 import '../levels/php/level1.dart';
 import '../levels/php/level2.dart';
+
+//pyton language
+import '../levels/python/level1.dart';
+import '../levels/python/level2.dart';
+import '../levels/python/level3.dart';
+import '../levels/python/level4.dart';
+import '../levels/python/level5.dart';
+import '../levels/python/level6.dart';
+import '../levels/python/level7.dart';
+import '../levels/python/level8.dart';
+import '../levels/python/level9.dart';
+import '../levels/python/level10.dart';
+
+
 import '../levels/sql/level1.dart' hide PhpLevel1;
 import '../levels/sql/level2.dart' hide PhpLevel1;
 
@@ -85,10 +99,8 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
 
   Widget _buildLevelCard(int levelIndex) {
     final isUnlocked = _isLevelUnlocked(levelIndex);
-    final scoreKey =
-        '${selectedLanguage.toLowerCase()}_level${levelIndex}_score';
-    final completedKey =
-        '${selectedLanguage.toLowerCase()}_level${levelIndex}_completed';
+    final scoreKey = '${selectedLanguage.toLowerCase()}_level${levelIndex}_score';
+    final completedKey = '${selectedLanguage.toLowerCase()}_level${levelIndex}_completed';
 
     final score = scores[scoreKey] ?? 0;
     final completed = scores[completedKey] == 1;
@@ -112,121 +124,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
           borderRadius: BorderRadius.circular(16),
           onTap: isUnlocked
               ? () {
-            final lang = selectedLanguage.toLowerCase();
-            switch (lang) {
-              case "python":
-                switch (levelIndex) {
-                  case 1:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PythonLevel1()),
-                    ).then((_) => _loadScores());
-                    break;
-                  case 2:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PythonLevel2()),
-                    ).then((_) => _loadScores());
-                    break;
-                  default:
-                    _notImplemented(context);
-                }
-                break;
-
-              case "java":
-                switch (levelIndex) {
-                  case 1:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const JavaLevel1()),
-                    ).then((_) => _loadScores());
-                    break;
-                  case 2:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const JavaLevel2()),
-                    ).then((_) => _loadScores());
-                    break;
-                  default:
-                    _notImplemented(context);
-                }
-                break;
-
-              case "c++":
-                switch (levelIndex) {
-                  case 1:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CppLevel1(),
-                      ),
-                    ).then((_) => _loadScores());
-                    break;
-                  case 2:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CppLevel2(),
-                      ),
-                    ).then((_) => _loadScores());
-                    break;
-                  default:
-                    _notImplemented(context);
-                }
-                break;
-
-              case "php":
-                switch (levelIndex) {
-                  case 1:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PhpLevel1()),
-                    ).then((_) => _loadScores());
-                    break;
-                  case 2:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PhpLevel2()),
-                    ).then((_) => _loadScores());
-                    break;
-                  default:
-                    _notImplemented(context);
-                }
-                break;
-
-              case "sql":
-                switch (levelIndex) {
-                  case 1:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const SqlLevel1()),
-                    ).then((_) => _loadScores());
-                    break;
-                  case 2:
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const SqlLevel2()),
-                    ).then((_) => _loadScores());
-                    break;
-                  default:
-                    _notImplemented(context);
-                }
-                break;
-
-              default:
-                Navigator.pushNamed(
-                  context,
-                  '/game/$lang/$levelIndex',
-                ).then((_) => _loadScores());
-            }
+            _showStartDialog(levelIndex); // Show Start Game dialog
           }
               : () => _showLockedDialog(context, levelIndex),
           child: Padding(
@@ -237,16 +135,12 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: isUnlocked
-                        ? Colors.teal.shade100
-                        : Colors.grey.shade300,
+                    color: isUnlocked ? Colors.teal.shade100 : Colors.grey.shade300,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     isUnlocked ? Icons.code : Icons.lock,
-                    color: isUnlocked
-                        ? Colors.teal.shade700
-                        : Colors.grey.shade600,
+                    color: isUnlocked ? Colors.teal.shade700 : Colors.grey.shade600,
                     size: 24,
                   ),
                 ),
@@ -274,16 +168,6 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                     ],
                   ),
                 ),
-                // 👉 reset icon lalabas lang pag unlocked at may progress
-                if (isUnlocked && (score > 0 || completed))
-                  IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.red),
-                    onPressed: () => _resetLevel(levelIndex),
-                  ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: isUnlocked ? Colors.teal.shade700 : Colors.grey,
-                ),
               ],
             ),
           ),
@@ -291,6 +175,130 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
       ),
     );
   }
+
+// --- Start Game Dialog Function ---
+  void _showStartDialog(int levelIndex) {
+    int countdown = 3;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) {
+          if (countdown > 0) {
+            Future.delayed(const Duration(seconds: 1), () {
+              if (mounted) setState(() => countdown--);
+            });
+          } else {
+            // Countdown finished, close dialog and start level
+            Future.delayed(Duration.zero, () {
+              Navigator.pop(context);
+              _startLevel(levelIndex);
+            });
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: countdown > 0
+                ? Text('Starting in $countdown...')
+                : const Text('Go!'),
+            content: countdown > 0
+                ? const Text('Get ready...')
+                : const Text('Level is starting!'),
+            actions: [
+              if (countdown > 0)
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+
+// --- Navigate to Level Function ---
+  void _startLevel(int levelIndex) {
+    final lang = selectedLanguage.toLowerCase();
+    switch (lang) {
+      case "python":
+        switch (levelIndex) {
+          case 1:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel1()),
+            ).then((_) => _loadScores());
+            break;
+          case 2:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel2()),
+            ).then((_) => _loadScores());
+            break;
+          case 3:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel3()),
+            ).then((_) => _loadScores());
+            break;
+          case 4:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel4()),
+            ).then((_) => _loadScores());
+            break;
+          case 5:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel5()),
+            ).then((_) => _loadScores());
+            break;
+          case 6:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel6()),
+            ).then((_) => _loadScores());
+            break;
+          case 7:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel7()),
+            ).then((_) => _loadScores());
+            break;
+          case 8:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel8()),
+            ).then((_) => _loadScores());
+            break;
+          case 9:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel9()),
+            ).then((_) => _loadScores());
+            break;
+          case 10:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PythonLevel10()),
+            ).then((_) => _loadScores());
+            break;
+          default:
+            _notImplemented(context);
+        }
+        break;
+
+    // Add Java, C++, PHP, SQL cases here if needed
+      default:
+        Navigator.pushNamed(
+          context,
+          '/game/$lang/$levelIndex',
+        ).then((_) => _loadScores());
+    }
+  }
+
 
   void _showLockedDialog(BuildContext context, int levelIndex) {
     showDialog(

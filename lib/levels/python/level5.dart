@@ -1,24 +1,23 @@
-import 'package:cpstn/levels/python/level3.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class PythonLevel2 extends StatefulWidget {
-  const PythonLevel2({super.key});
+class PythonLevel5 extends StatefulWidget {
+  const PythonLevel5({super.key});
 
   @override
-  State<PythonLevel2> createState() => _PythonLevel2State();
+  State<PythonLevel5> createState() => _PythonLevel5State();
 }
 
-class _PythonLevel2State extends State<PythonLevel2> {
+class _PythonLevel5State extends State<PythonLevel5> {
   List<String> allBlocks = [];
   List<String> droppedBlocks = [];
   bool gameStarted = false;
   bool isTagalog = false;
   bool isAnsweredCorrectly = false;
-  bool level2Completed = false;
+  bool level5Completed = false;
 
   int score = 3;
   int remainingSeconds = 60;
@@ -32,15 +31,14 @@ class _PythonLevel2State extends State<PythonLevel2> {
   }
 
   void resetBlocks() {
+    // 🔹 Puzzle blocks for Level 5 (example: for loop)
     allBlocks = [
       'for',
       'i',
       'in',
-      'range(5):',
+      'range(3):',
       'print',
-      '(i)',
-      'printx',
-      '("Hi")',
+      '("Hello", i)',
     ]..shuffle();
   }
 
@@ -92,7 +90,7 @@ class _PythonLevel2State extends State<PythonLevel2> {
   }
 
   void resetGame() {
-    if (level2Completed) return;
+    if (level5Completed) return;
     setState(() {
       score = 3;
       remainingSeconds = 60;
@@ -106,20 +104,20 @@ class _PythonLevel2State extends State<PythonLevel2> {
 
   Future<void> saveScoreToPrefs(int score) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('python_level2_score', score);
+    await prefs.setInt('python_level5_score', score);
 
     if (score > 0) {
-      await prefs.setBool('python_level2_completed', true);
+      await prefs.setBool('python_level5_completed', true);
     }
   }
 
   Future<void> loadScoreFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedScore = prefs.getInt('python_level2_score');
-    final completed = prefs.getBool('python_level2_completed') ?? false;
+    final savedScore = prefs.getInt('python_level5_score');
+    final completed = prefs.getBool('python_level5_completed') ?? false;
     setState(() {
       if (savedScore != null) score = savedScore;
-      level2Completed = completed;
+      level5Completed = completed;
     });
   }
 
@@ -152,25 +150,25 @@ class _PythonLevel2State extends State<PythonLevel2> {
     if (isAnsweredCorrectly || droppedBlocks.isEmpty) return;
 
     String answer = droppedBlocks.join(' ');
-    // 🔹 Correct answer for Level 2
-    if (answer == 'for i in range(5): print (i)') {
+    // 🔹 Correct answer for Level 5
+    if (answer == 'for i in range(3): print ("Hello", i)') {
       countdownTimer?.cancel();
       isAnsweredCorrectly = true;
       await saveScoreToPrefs(score);
       await sendScoreToBackend(score);
 
       setState(() {
-        level2Completed = true;
+        level5Completed = true;
       });
 
-      // Show output in dialog
+      // ✅ Show output in a dialog
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text("✅ Correct! Level Completed"),
-          content: Text(
-            "Output:\n${List.generate(5, (i) => i).join('\n')}", // prints 0-4
-            style: const TextStyle(fontFamily: 'monospace'),
+          content: const Text(
+            "Output:\nHello 0\nHello 1\nHello 2",
+            style: TextStyle(fontFamily: 'monospace'),
           ),
           actions: [
             TextButton(
@@ -215,6 +213,7 @@ class _PythonLevel2State extends State<PythonLevel2> {
     }
   }
 
+
   String formatTime(int seconds) {
     final m = (seconds ~/ 60).toString().padLeft(2, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
@@ -235,8 +234,8 @@ class _PythonLevel2State extends State<PythonLevel2> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("🐍 Python - Level 2"),
-        backgroundColor: Colors.green,
+        title: const Text("🐍 Python - Level 5"),
+        backgroundColor: Colors.purple,
         actions: gameStarted
             ? [
           Padding(
@@ -248,7 +247,8 @@ class _PythonLevel2State extends State<PythonLevel2> {
                 Text(formatTime(remainingSeconds)),
                 const SizedBox(width: 16),
                 const Icon(Icons.star, color: Colors.yellowAccent),
-                Text(" $score", style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(" $score",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -268,19 +268,20 @@ class _PythonLevel2State extends State<PythonLevel2> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           ElevatedButton.icon(
-            onPressed: level2Completed ? null : startGame,
+            onPressed: level5Completed ? null : startGame,
             icon: const Icon(Icons.play_arrow),
-            label: Text(level2Completed ? "Completed" : "Start Game"),
+            label: Text(level5Completed ? "Completed" : "Start Game"),
             style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 backgroundColor: Colors.tealAccent,
                 foregroundColor: Colors.black),
           ),
-          if (level2Completed)
+          if (level5Completed)
             const Padding(
               padding: EdgeInsets.only(top: 10),
               child: Text(
-                "✅ Level 2 already completed!",
+                "✅ Level 5 already completed!",
                 style: TextStyle(color: Colors.greenAccent),
               ),
             ),
@@ -299,27 +300,35 @@ class _PythonLevel2State extends State<PythonLevel2> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('📖 Short Story',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
               TextButton.icon(
                 onPressed: () {
-                  setState(() { isTagalog = !isTagalog; });
+                  setState(() {
+                    isTagalog = !isTagalog;
+                  });
                 },
                 icon: const Icon(Icons.translate, color: Colors.white),
-                label: Text(isTagalog ? 'English' : 'Tagalog', style: const TextStyle(color: Colors.white)),
+                label: Text(isTagalog ? 'English' : 'Tagalog',
+                    style: const TextStyle(color: Colors.white)),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
             isTagalog
-                ? 'Si Zeke ay gusto ngayong gumawa ng loop sa Python! Gusto niyang i-print ang mga numero mula 0 hanggang 4 gamit ang for loop. Pwede mo ba siyang tulungan buuin ang tamang code sa pamamagitan ng pag-aayos ng mga puzzle blocks sa ibaba?'
-                : 'Zeke now wants to make a loop in Python! He wants to print numbers from 0 to 4 using a for loop. Can you help him build the correct code by arranging the puzzle blocks below?',
+                ? 'Ngayon gusto ni Zeke gumawa ng for loop sa Python! I-print ang "Hello" at i sa loob ng range(3).'
+                : 'Now Zeke wants to use a for loop in Python! Print "Hello" and i inside range(3).',
             textAlign: TextAlign.justify,
             style: const TextStyle(fontSize: 16, color: Colors.white),
           ),
           const SizedBox(height: 20),
-          const Text('🧩 Arrange the puzzle blocks to form: for i in range(5): print(i)',
-              style: TextStyle(fontSize: 18, color: Colors.white), textAlign: TextAlign.center),
+          const Text(
+              '🧩 Arrange the puzzle blocks to form: for i in range(3): print("Hello", i)',
+              style: TextStyle(fontSize: 18, color: Colors.white),
+              textAlign: TextAlign.center),
           const SizedBox(height: 20),
           AnimatedSize(
             duration: const Duration(milliseconds: 300),
@@ -370,17 +379,20 @@ class _PythonLevel2State extends State<PythonLevel2> {
                 },
               ),
             ),
-          ),
+          ), // ✅ Dito boss, mahalaga ang comma sa dulo
 
           const SizedBox(height: 20),
-          const Text('📝 Preview:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          const Text('📝 Preview:',
+              style:
+              TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
           Container(
             padding: const EdgeInsets.all(10),
             width: double.infinity,
             color: Colors.grey[800],
             child: Text(
               getPreviewCode(),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 18, color: Colors.white),
+              style: const TextStyle(
+                  fontFamily: 'monospace', fontSize: 18, color: Colors.white),
             ),
           ),
           const SizedBox(height: 20),
@@ -394,7 +406,9 @@ class _PythonLevel2State extends State<PythonLevel2> {
                   : Draggable<String>(
                 data: block,
                 feedback: puzzleBlock(block, Colors.blueAccent),
-                childWhenDragging: Opacity(opacity: 0.4, child: puzzleBlock(block, Colors.blueAccent)),
+                childWhenDragging: Opacity(
+                    opacity: 0.4,
+                    child: puzzleBlock(block, Colors.blueAccent)),
                 child: puzzleBlock(block, Colors.blueAccent),
               );
             }).toList(),
@@ -405,42 +419,21 @@ class _PythonLevel2State extends State<PythonLevel2> {
             icon: const Icon(Icons.play_arrow),
             label: const Text("Run Code"),
           ),
-          if (!level2Completed)
+          if (!level5Completed)
             TextButton(
               onPressed: resetGame,
               child: const Text("🔁 Retry"),
               style: TextButton.styleFrom(foregroundColor: Colors.white),
-            ),
-          if (level2Completed)
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const PythonLevel3(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.navigate_next),
-              label: const Text("Next Level"),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
             ),
         ],
       ),
     );
   }
 
-  // 🔹 Updated puzzleBlock for auto-resize
   Widget puzzleBlock(String text, Color color) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    double blockWidth = text.length * 14.0 + 20; // simple estimate based on text length
-    if (blockWidth > screenWidth / 3) blockWidth = screenWidth / 3; // max 1/3 screen width
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      width: blockWidth,
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
         color: color,
         borderRadius: const BorderRadius.only(
@@ -456,15 +449,12 @@ class _PythonLevel2State extends State<PythonLevel2> {
           )
         ],
       ),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontFamily: 'monospace',
-            fontSize: 16,
-          ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontFamily: 'monospace',
+          fontSize: 16,
         ),
       ),
     );
